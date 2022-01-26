@@ -1,8 +1,6 @@
-# Meyer Lab Nanopore Project  
+# Meyer Lab Nanopore Project
 ## Purpose  
 The purpose of this repository is to create a data pipeline for the processing and analysis of nanopore sequence data.
-
-## Usage
 
 ## Setup
 ### 1. Configure AWS accounts
@@ -171,3 +169,14 @@ cd meyer-nanopore
 cd scripts
 sh instance_initial_config.sh
 ```
+
+### 5. Quality of life (optional tools)
+When working with a remote server, if you are not entirely comfortable with the command line interface, navigating around, manipulating files, and creating / editing text files with vim, nano or other CLI text editor, it is highly recommend to install some tools to improve your workflow:
+- SFTP / FTP Client: *Allows you to view your local and remote file structure in a GUI, allowing for easy drag and drop file transfers.*
+	- Windows:  [WinSCP](https://winscp.net/eng/index.php) is a good choice but there are others. 
+	- Mac: [Cyberduck](https://cyberduck.io/)
+- Integrated Development Environment: *Gives you a fully featured code editor, console window and file structure all in one interface*
+	- Windows or Mac: I recommend [JetBrains Gateway](https://www.jetbrains.com/remote-development/gateway/) (free for .edu email addresses) but again there are others.
+
+## Usage
+*...To follow...*
