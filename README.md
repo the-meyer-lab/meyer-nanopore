@@ -5,26 +5,26 @@ The purpose of this repository is to create a data pipeline for the processing a
 ## Usage
 
 ## Setup
-## 1. Configure AWS accounts
+### 1. Configure AWS accounts
 *(skip if you've already configured your AWS account and key pair)*
-### a. Set up new admin account (if applicable)
+#### a. Set up new admin account (if applicable)
 - Organizations > add an aws account
 - Follow instructions
 
-### b. Set up a new IAM user for individual users
+#### b. Set up a new IAM user for individual users
 - IAM > users > add users
 - Follow instructions
 
-### c. Create key pair for users who will be accessing instances
+#### c. Create key pair for users who will be accessing instances
 *(This is only required once for each user, and must be kept private.*)
 - EC2 > Key pairs >
 	- Enter name of user key pair will be granted to
 	- Leave defaults: RSA / .pem
 	- Download file, and securely provide to user who will be using it. Delete it once transfer is complete.
 	
-## 2. Configure AWS services
+### 2. Configure AWS services
 *(These steps can be skipped if your EC2 instances, EBV and S3 buckets are already configured.)*
-### a. Configure a new IAM role that will be granted to EC2 instances allowing for S3 access:
+#### a. Configure a new IAM role that will be granted to EC2 instances allowing for S3 access:
 *(This is only required once when setting up AWS account for first time.)*
 - IAM > Create role > AWS Service
 	- Select use case, in this case allowing EC2 to call AWS services on our behalf.
@@ -33,13 +33,13 @@ The purpose of this repository is to create a data pipeline for the processing a
 - Name role 'EC2toS3' 
 - Create role
 
-### b. Set up Elastic Block Volume (EBV, hard drive that will be attached to our compute instance)
+#### b. Set up Elastic Block Volume (EBV, hard drive that will be attached to our compute instance)
 - EC2 > Elastic Block Store > Volumes > Create Volume
 - Select volume type (General Purpose SSD is suitable for most applications)
 - Select desired size
 - Select region (needs to match region where you will be using instance.) For Meyer Lab applications, select us-west-1b
 
-### c. Set up compute instance
+#### c. Set up compute instance
 - If desired instance is already configured, select from list and launch. If notm configure new instance with following steps:
 	- EC2 > Instances > Launch Instance > 
 		- Select operating system: recommend Deep Learning AMI (Ubuntu 18.XX) Version XX.XX
@@ -53,13 +53,13 @@ The purpose of this repository is to create a data pipeline for the processing a
 		- Review & Launch > Launch
 			- Assign key pair of users who will be accessing instance. Create new key pair if required by following [[Nanopore Sequencing AWS Setup Manual#c Create key pair for users who will be accessing instances]]
 
-### d. Attach EBV to instance
+#### d. Attach EBV to instance
 - EBS > Volumes
 	- Select volume created in [[Nanopore Sequencing AWS Setup Manual#b Set up Elastic Block Volume EBV hard drive that will be attached to our compute instance]]
 	- Actions > Attach Volume >
 		- Select instance
 
-### e. Set up S3 bucket
+#### e. Set up S3 bucket
 - S3 > Create bucket
 	- Add bucket name. Recommend a new bucket for each project.
 	- Select region, ensure matches previously selected regions of instances & EBV.
@@ -67,14 +67,107 @@ The purpose of this repository is to create a data pipeline for the processing a
 		-  See standard S3 pricing [here](https://aws.amazon.com/s3/pricing/) to help you decide whether to use versioning. Versioning greatly increases storage utilization, see explanation [here](https://aws.amazon.com/s3/faqs/).
 	- Create bucket.
 
-## 3. Configuring your instance
-### a. Install AWS CLI
+### 3. Uploading your data to s3
+- From the AWS console, navigate to your S3 bucket created in [[Nanopore Sequencing AWS Setup Manual#e Set up S3 bucket]]
+- Click "Upload" and "Upload Folder"
+- Select folder containing your raw fast5 folders from nanopore sequencing.
+
+### 4. Configuring your instance
+#### a. Install AWS CLI
 - Follow instructions on installing AWS CLI (Amazon Commandline Interface) [here](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html).
 
-### b. Connect to instance from your command line
-- EC2 > Instances > select desired instance and click "Connect"
+#### b. Connect to instance from your command line
+- EC2 > Instances > select desired instance that has been launched and click "Connect"
 	- Will display a sample command to connect to your instance e.g.:
-		>ssh -i "yuri-malina.pem" ubuntu@ec2-54-219-34-238.us-west-1.compute.amazonaws.com
-	- "yuri-malina.pem" should be replaced by the path to your .pem file downloaded in step [[Nanopore Sequencing AWS Setup Manual#c Create key pair for users who will be accessing instances]].
+	```bash
+	ssh -i "G:\My Drive\Meyer Lab\AWS\yuri-malina.pem" ubuntu@ec2-54-219-137-86.us-west-1.compute.amazonaws.com
+	```
+	- "G:\My Drive\Meyer Lab\AWS\yuri-malina.pem" should be replaced by the path to your .pem file downloaded in step [[Nanopore Sequencing AWS Setup Manual#c Create key pair for users who will be accessing instances]].
+		- "c2-54-219-137-86" should be replaced with the address listed on your instance's connect page.
 	- If you get an error with this command, an alternative is:
-		> ssh -i "yuri-malina.pem" ec2-54-219-34-238.us-west-1.compute.amazonaws.com -l ubuntu
+	```bash
+	ssh -i "G:\My Drive\Meyer Lab\AWS\yuri-malina.pem" ec2-c2-54-219-137-86.us-west-1.compute.amazonaws.com -l ubuntu
+	```
+
+#### c. Configure your EVB drive on your AWS instance
+Excute the following commands:
+
+```bash
+###### Configure EBV drive on instance  
+# Format drives to the correct file system type, and mount them  
+printf "n\np\n\n\n\nw" | sudo fdisk /dev/nvme1n1  
+# fdisk options: n = new partition; p = primary; accept 3 defaults; w = write  
+  
+sudo partprobe /dev/nvme1n1  
+printf "y" | sudo mkfs.ext4 /dev/nvme1n1  
+  
+# Make folder (if it doesn't already exist) and mount drive  
+sudo mkdir -p /Data1  
+sudo mount /dev/nvme1n1 /Data1  
+# Change owner of drive  
+sudo chown -R ubuntu /Data1  
+  
+# Make folder tree  
+mkdir -p /Data1/reference  
+mkdir -p /Data1/software  
+mkdir -p /Data1/fast5  
+mkdir -p /Data1/git  
+######  
+  
+######  
+# For g4dn.metal that my have 2 drives uncomment following lines  
+# printf "n\np\n\n\n\nw" | sudo fdisk /dev/nvme2n1  
+# sudo partprobe /dev/nvme2n1  
+# printf "y" | sudo mkfs.ext4 /dev/nvme2n1  
+# sudo mkdir -p /Data2  
+# sudo mount /dev/nvme2n1 /Data2  
+# sudo chown -R ubuntu /Data2  
+######
+```
+
+#### d. Clone this git repository onto the instance
+Execute the following commands:
+- Create a folder for your git repositories
+```bash
+mkdir -p /Data1/git
+```
+
+- Install github command line
+```bash
+curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+sudo apt update
+sudo apt install gh
+```
+- Configure git with your git user credentials. If you don't have git credentials, follow instructions [here](https://docs.github.com/en/get-started/signing-up-for-github/signing-up-for-a-new-github-account) to create them for the first time. Replace "frnkmxwll" and "ymalina@gmail.com" with your user name and email used to create your github account.
+```bash
+git config --global user.name "frnkmxwll"
+git config --global user.email ymalina@gmail.com
+```
+- Authenticate using Github Commandline
+```bash
+gh auth login
+# Log into: **GitHub.com**
+# Preferred protocol is: HTTPS
+# Authenticate Git with GitHub credentials: Yes
+# How would you like to authenticate: Paste an authentication token
+```
+
+To obtain an authentication token follow github instructions [here](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token)
+	Select the following scopes:
+	![[Pasted image 20220121191329.png]]
+
+Clone this git repository with the following command:
+```bash
+cd /git/
+git clone https://github.com/frnkmxwll/meyer-nanopore 
+```
+
+#### e. Install libraries and assets required for nanopore sequencing 
+Execute python script from this git repo, by navigating to your script 
+
+```bash
+cd meyer-nanopore
+cd scripts
+sh instance_initial_config.sh
+```
