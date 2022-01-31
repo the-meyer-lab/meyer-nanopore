@@ -14,7 +14,7 @@ printf "Y" | sudo apt install samtools
 sudo apt-get install bedtools
 printf "Y" | sudo apt install ont-guppy --no-install-recommends
 
-#obtain the rerio all-contexts model file
+# obtain the rerio all-contexts model file
 git clone https://github.com/nanoporetech/rerio
 rerio/download_model.py rerio/basecall_models/res_dna_r941_min_modbases-all-context_v001
 sudo cp /Data1/software/rerio/basecall_models/res_dna_r941_min_modbases-all-context_v001 /opt/ont/guppy/data/
