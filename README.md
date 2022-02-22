@@ -104,12 +104,6 @@ sudo mkdir -p /Data1
 sudo mount /dev/nvme1n1 /Data1  
 # Change owner of drive  
 sudo chown -R ubuntu /Data1  
-  
-# Make folder tree  
-mkdir -p /Data1/reference  
-mkdir -p /Data1/software  
-mkdir -p /Data1/fast5  
-mkdir -p /Data1/git  
 ######  
   
 ######  
@@ -125,13 +119,9 @@ mkdir -p /Data1/git
 
 #### d. Clone this git repository onto the instance
 Execute the following commands:
-- Create a folder for your git repositories
-```bash
-mkdir -p /Data1/git
-```
-
 - Install github command line
 ```bash
+mkdir -p /Data1/git  
 curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
 echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
 sudo apt update
@@ -157,17 +147,14 @@ To obtain an authentication token follow github instructions [here](https://docs
 
 Clone this git repository with the following command:
 ```bash
-cd /git/
-git clone https://github.com/frnkmxwll/meyer-nanopore 
+git clone https://github.com/frnkmxwll/meyer-nanopore ../git/
 ```
 
 #### e. Install libraries and assets required for nanopore sequencing 
 Execute python script from this git repo, by navigating to your script 
 
 ```bash
-cd meyer-nanopore
-cd scripts
-sh instance_initial_config.sh
+sh ../git/meyer-nanopore/scripts/instance_initial_config.sh
 ```
 
 ### 5. Quality of life (optional tools)

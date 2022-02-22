@@ -1,10 +1,21 @@
 # Initial configuration for AWS instance for nanopore sequence data analysis.
 
+###### Initiate file structure
+# Navigate to home directory
+cd ~
+
+# Make folder tree
+mkdir -p /Data1/reference
+mkdir -p /Data1/software
+mkdir -p /Data1/seq_data
 ######
+
+###### Install required software packages
 # install/update guppy, samtools, bedtools, python & pip
-cd /Data1/software
+cd ../software
+# For remote server: ../Data1/software
 sudo apt-get update
-sudo apt-get install wget lsb-release
+printf "Y" | sudo apt-get install wget lsb-release
 export PLATFORM=$(lsb_release -cs)
 wget -O- https://mirror.oxfordnanoportal.com/apt/ont-repo.pub | sudo apt-key add -
 echo "deb http://mirror.oxfordnanoportal.com/apt ${PLATFORM}-stable non-free" | sudo tee /etc/apt/sources.list.d/nanoporetech.sources.list
@@ -30,13 +41,25 @@ pip install ont_pyguppy_client_lib
 sudo apt-get install python3.7
 curl -O https://bootstrap.pypa.io/get-pip.py
 python3 get-pip.py --user
+
+#install minimap
+curl -L https://github.com/lh3/minimap2/releases/download/v2.24/minimap2-2.24_x64-linux.tar.bz2 | tar -jxvf -./minimap2-2.24_x64-linux/minimap2
+
+cd ../
 ######
 
-######
+###### Download required files
 # Download reference genome
-#download T2T human reference sequence
-cd /Data1/reference
-# NOTE UPDATE BELOW FOR C ELEGANS REF GENOME
-wget https://s3-us-west-2.amazonaws.com/human-pangenomics/T2T/CHM13/assemblies/chm13.draft_v1.1.fasta.gz
-gunzip chm13.draft_v1.1.fasta.gz
+# For remote server: ../Data1/reference
+# Update below for your specific organism.
+wget https://downloads.wormbase.org/species/c_elegans/sequence/genomic/c_elegans.WS235.genomic.fa.gz ../reference
+gunzip /reference/c_elegans.WS235.genomic.fa.gz
+
+#index using minimap
+minimap2-2.24_x64-linux/minimap2 -d /reference/ce245_indexed/ce235.mmi /reference/c_elegans.WS235.genomic.fa
 ######
+
+#download nanopore fast5 files
+#note: replace s3 bucket with where your sequencing data is stored.
+aws s3 sync "s3://nanopore-1/nanopore first run/" /seq_data/
+
