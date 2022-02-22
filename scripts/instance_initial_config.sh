@@ -4,10 +4,14 @@
 # Navigate to home directory
 cd ~
 
-# Make folder tree
-mkdir -p /Data1/reference
-mkdir -p /Data1/software
-mkdir -p /Data1/seq_data
+### Make folder tree (Uncomment on AWS server)
+#mkdir -p /Data1/reference
+#mkdir -p /Data1/software
+#mkdir -p /Data1/seq_data
+
+#download nanopore fast5 files
+#note: replace s3 bucket with where your sequencing data is stored.
+#aws s3 sync "s3://nanopore-1/nanopore first run/" /seq_data/
 ######
 
 ###### Install required software packages
@@ -43,8 +47,7 @@ curl -O https://bootstrap.pypa.io/get-pip.py
 python3 get-pip.py --user
 
 #install minimap
-curl -L https://github.com/lh3/minimap2/releases/download/v2.24/minimap2-2.24_x64-linux.tar.bz2 | tar -jxvf -./minimap2-2.24_x64-linux/minimap2
-
+curl -L https://github.com/lh3/minimap2/releases/download/v2.24/minimap2-2.24_x64-linux.tar.bz2 | tar -jxvf -./minimap2-2.24_x64-linux/miniinmap2
 cd ../
 ######
 
@@ -52,14 +55,12 @@ cd ../
 # Download reference genome
 # For remote server: ../Data1/reference
 # Update below for your specific organism.
-wget https://downloads.wormbase.org/species/c_elegans/sequence/genomic/c_elegans.WS235.genomic.fa.gz ../reference
-gunzip /reference/c_elegans.WS235.genomic.fa.gz
+wget https://downloads.wormbase.org/species/c_elegans/sequence/genomic/c_elegans.WS235.genomic.fa.gz -O ./reference/c_elegans.WS235.genomic.fa.gz
+gunzip ./reference/c_elegans.WS235.genomic.fa.gz
 
 #index using minimap
-minimap2-2.24_x64-linux/minimap2 -d /reference/ce245_indexed/ce235.mmi /reference/c_elegans.WS235.genomic.fa
+software/minimap2-2.24_x64-linux/minimap2 -d ./reference/ws235.mmi ./reference/c_elegans.WS235.genomic.fa
 ######
 
-#download nanopore fast5 files
-#note: replace s3 bucket with where your sequencing data is stored.
-aws s3 sync "s3://nanopore-1/nanopore first run/" /seq_data/
+
 
