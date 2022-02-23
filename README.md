@@ -93,29 +93,20 @@ Excute the following commands:
 ```bash
 ###### Configure EBV drive on instance  
 # Format drives to the correct file system type, and mount them  
+# Note: only do this when mounting drive for first time. This will clear data from an existing drive.
 printf "n\np\n\n\n\nw" | sudo fdisk /dev/nvme1n1  
 # fdisk options: n = new partition; p = primary; accept 3 defaults; w = write  
-  
 sudo partprobe /dev/nvme1n1  
 printf "y" | sudo mkfs.ext4 /dev/nvme1n1  
   
 # Make folder (if it doesn't already exist) and mount drive  
 sudo mkdir -p /Data1  
+# Determine your drive name (usually of the format nvmeXnX)
+# to list available drives: sudo lsblk
 sudo mount /dev/nvme1n1 Data1  
 # Change owner of drive  
 sudo chown -R ubuntu Data1  
 ######  
-  
-######  
-# For g4dn.metal that my have 2 drives uncomment following lines  
-# to list available drives: sudo lsblk
-# printf "n\np\n\n\n\nw" | sudo fdisk /dev/nvme2n1  
-# sudo partprobe /dev/nvme2n1  
-# printf "y" | sudo mkfs.ext4 /dev/nvme2n1  
-# sudo mkdir -p /Data2  
-# sudo mount /dev/nvme2n1 Data2/  
-# sudo chown -R ubuntu Data2/  
-######
 ```
 
 #### d. Clone this git repository onto the instance
@@ -147,8 +138,13 @@ To obtain an authentication token follow github instructions [here](https://docs
 	![[Pasted image 20220121191329.png]]
 
 Clone this git repository with the following command:
+
+NOTE: only necessary if using new EBV volume and git repository is not already cloned. 
+If repository already exists, execute "git pull" to update local branch.
 ```bash
 git clone https://github.com/frnkmxwll/meyer-nanopore ../git/
+
+git pull
 ```
 
 #### e. Install libraries and assets required for nanopore sequencing 

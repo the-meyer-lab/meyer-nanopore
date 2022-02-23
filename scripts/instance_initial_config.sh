@@ -42,6 +42,11 @@ sudo pip install megalodon
 #Install minimap2
 curl -L https://github.com/lh3/minimap2/releases/download/v2.20/minimap2-2.20_x64-linux.tar.bz2 | tar -jxvf -
 
+### Install nvidia driver and CUDA
+#install yum
+sudo apt-get install linux-headers-$(uname -r)
+
+
 cd ../
 ######
 
