@@ -12,7 +12,6 @@ mkdir ./Data1/software
 
 ###### Install required software packages
 # install/update guppy, samtools, bedtools, python & pip
-sudo apt-get install python3.7
 cd ./Data1/software
 # For remote server: ../Data1/software
 sudo apt-get update
