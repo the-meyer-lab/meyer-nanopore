@@ -7,11 +7,12 @@ cd ~
 ### Make folder tree (Uncomment on AWS server)
 mkdir ./Data1/reference
 mkdir ./Data1/software
-mkdir ./Data1/seq_data
+#mkdir ./Data1/seq_data
 ######
 
 ###### Install required software packages
 # install/update guppy, samtools, bedtools, python & pip
+sudo apt-get install python3.7
 cd ./Data1/software
 # For remote server: ../Data1/software
 sudo apt-get update
@@ -34,8 +35,8 @@ sudo cp /Data1/software/rerio/basecall_models/res_dna_r941_min_modbases-all-cont
 sudo cp -r /Data1/software/rerio/basecall_models/barcoding/* /opt/ont/guppy/data/barcoding/
 
 #install/update megalodon
-pip install megalodon
-pip install ont_pyguppy_client_lib
+sudo pip install megalodon
+sudo pip install ont_pyguppy_client_lib
 
 #install latest versions of python & pip
 sudo apt-get install python3.7
@@ -65,7 +66,7 @@ gunzip ./reference/c_elegans.WS235.genomic.fa.gz
 
 #download nanopore fast5 files
 #note: replace s3 bucket with where your sequencing data is stored.
-aws s3 sync "s3://nanopore-1/nanopore first run/" /seq_data/
+#aws s3 sync "s3://nanopore-1/nanopore first run/" /seq_data/
 
 #index using minimap
 #software/minimap2-2.24_x64-linux/minimap2 -d ./reference/ws235.mmi ./reference/c_elegans.WS235.genomic.fa
