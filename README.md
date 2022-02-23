@@ -101,19 +101,20 @@ printf "y" | sudo mkfs.ext4 /dev/nvme1n1
   
 # Make folder (if it doesn't already exist) and mount drive  
 sudo mkdir -p /Data1  
-sudo mount /dev/nvme1n1 /Data1  
+sudo mount /dev/nvme1n1 Data1  
 # Change owner of drive  
-sudo chown -R ubuntu /Data1  
+sudo chown -R ubuntu Data1  
 ######  
   
 ######  
 # For g4dn.metal that my have 2 drives uncomment following lines  
+# to list available drives: sudo lsblk
 # printf "n\np\n\n\n\nw" | sudo fdisk /dev/nvme2n1  
 # sudo partprobe /dev/nvme2n1  
 # printf "y" | sudo mkfs.ext4 /dev/nvme2n1  
 # sudo mkdir -p /Data2  
-# sudo mount /dev/nvme2n1 /Data2  
-# sudo chown -R ubuntu /Data2  
+# sudo mount /dev/nvme2n1 Data2/  
+# sudo chown -R ubuntu Data2/  
 ######
 ```
 
