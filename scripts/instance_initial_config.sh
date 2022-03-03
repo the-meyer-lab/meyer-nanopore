@@ -4,27 +4,48 @@
 # Navigate to home directory
 cd ~
 
-### Make folder tree (Uncomment on AWS server)
-mkdir ./Data1/software
-#mkdir ./Data1/seq_data
-######
-
 ###### Install required software packages
-# install/update guppy, samtools, bedtools, python & pip
 cd ./Data1/software
-# For remote server: ../Data1/software
+
+# Add Oxford Nanopore's deb repository to your system (this is to install Oxford Nanopore Technologies-specific dependency packages):
+# Get operating system name
+sudo apt-get update
 sudo apt-get update
 printf "Y" | sudo apt-get install wget lsb-release
 export PLATFORM=$(lsb_release -cs)
-
-wget -O- https://mirror.oxfordnanoportal.com/apt/ont-repo.pub | sudo apt-key add -
 echo "deb http://mirror.oxfordnanoportal.com/apt ${PLATFORM}-stable non-free" | sudo tee /etc/apt/sources.list.d/nanoporetech.sources.list
 sudo apt-get update
+
 sudo apt update
-printf "Y" | sudo apt upgrade
+
+# display ont-guppy requirements
+apt-cache show ont-guppy
+# Guppy requires Cuda 11.1.1
+wget https://developer.download.nvidia.com/compute/cuda/11.1.1/local_installers/cuda_11.1.1_455.32.00_linux.run
+sudo sh cuda_11.1.1_455.32.00_linux.run
+#accept and install driver 455 & CUDA toolkit 11.1.1
+
+sudo apt install nvidia-cuda-toolkit
+export PATH="/usr/local/cuda-11.1/bin"
+
+ -   LD_LIBRARY_PATH includes /usr/local/cuda-11.1/lib64, or, add /usr/local/cuda-11.1/lib64 to /etc/ld.so.conf and run ldconfig as root
+
+
+#install samtools
 printf "Y" | sudo apt install samtools
+
+#install bedtools
 sudo apt-get install bedtools
-printf "Y" | sudo apt install ont-guppy --no-install-recommends
+
+sudo apt-get install ont_guppy --no-install-recommends
+
+
+
+#printf "Y" | sudo apt install ont-guppy --no-install-recommends
+#if [ ! -f /home/ubuntu/Data1/software/ont_guppy_6.0.1-1~bionic_amd64.deb ]; then
+wget https://mirror.oxfordnanoportal.com/software/analysis/ont-guppy_5.0.16_linux64.tar.gz
+#fi
+#tar -xf ont-guppy_6.0.1_linuxaarch64_cuda10.tar.gz
 
 if [ ! -f /home/ubuntu/Data1/software/v2.03.tar.gz ]; then
   wget https://github.com/marbl/Winnowmap/archive/refs/tags/v2.03.tar.gz
@@ -43,9 +64,16 @@ sudo pip install megalodon
 curl -L https://github.com/lh3/minimap2/releases/download/v2.20/minimap2-2.20_x64-linux.tar.bz2 | tar -jxvf -
 
 ### Install nvidia driver and CUDA
-#install yum
-sudo apt-get install linux-headers-$(uname -r)
+wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/cuda-ubuntu1804.pin
+sudo mv cuda-ubuntu1804.pin /etc/apt/preferences.d/cuda-repository-pin-600
+wget https://developer.download.nvidia.com/compute/cuda/11.6.1/local_installers/cuda-repo-ubuntu1804-11-6-local_11.6.1-510.47.03-1_amd64.deb
+sudo dpkg -i cuda-repo-ubuntu1804-11-6-local_11.6.1-510.47.03-1_amd64.deb
+sudo apt-key add /var/cuda-repo-ubuntu1804-11-6-local/7fa2af80.pub
+sudo apt-get update
+sudo apt-get -y install cuda
 
+export PATH=/usr/local/cuda-11.6/bin${PATH:+:${PATH}}
+export LD_LIBRARY_PATH=/usr/local/cuda-11.6/lib64\ ${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
 
 cd ../
 ######
