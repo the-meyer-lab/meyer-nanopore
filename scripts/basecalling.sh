@@ -45,7 +45,7 @@ done
 mkdir /Data1/megalodon
 for i in 01; do
 	mkdir /Data1/seq_data/210614_Raja/megalodon/barcode$i
-	megalodon /Data1/seq_data/210614_Raja/20210614_2006_MN36964_FAQ21673_44f55e74/fast5/split/barcode$i --output-directory /Data1/seq_data/210614_Raja/megalodon/barcode$i --overwrite --guppy-params "-d /opt/ont/guppy/data" --guppy-server-path /usr/bin/guppy_basecall_server --guppy-config res_dna_r941_min_modbases-all-context_v001.cfg  --outputs mappings mod_mappings --reference /Data1/reference/ws235.mmi --device cuda:all --processes 92 --mod-min-prob 0
+	megalodon /Data1/seq_data/210614_Raja/20210614_2006_MN36964_FAQ21673_44f55e74/fast5/split/barcode$i --output-directory /Data1/seq_data/210614_Raja/megalodon/barcode$i --overwrite --guppy-params "-d /opt/ont/guppy/data" --guppy-server-path /usr/bin/guppy_basecall_server --guppy-config res_dna_r941_min_modbases-all-context_v001.cfg  --outputs mappings mod_mappings per_read_mods --reference /Data1/reference/ws235.mmi --device cuda:all --processes 92 --mod-min-prob 0
 done
 #sort megalodons output bam
 for i in 01;do
