@@ -75,10 +75,13 @@ sudo apt-get -y install cuda
 export PATH=/usr/local/cuda-11.6/bin${PATH:+:${PATH}}
 export LD_LIBRARY_PATH=/usr/local/cuda-11.6/lib64\ ${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
 
-cd ../
-
 # Install methylartist for analysis ad visualization
-pip install methylartist
+sudo pip install methylartist
+sudo pip install methplotlib
+sudo pip install methplotlib --upgrade
+
+#install mysql needed to query chromosome sizes for methylartist violin plots
+sudo apt install mysql-client-core-5.7
 ######
 
 ###### Download required files
