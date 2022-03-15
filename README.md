@@ -94,10 +94,15 @@ Excute the following commands:
 ###### Configure EBV drive on instance  
 # Format drives to the correct file system type, and mount them  
 # Note: only do this when mounting drive for first time. This will clear data from an existing drive.
+# For drives < 2TB in size:
 printf "n\np\n\n\n\nw" | sudo fdisk /dev/nvme1n1  
+# For drives > 2TB in size:
+sudo mkfs -t xfs /dev/xvdf
 # fdisk options: n = new partition; p = primary; accept 3 defaults; w = write  
 sudo partprobe /dev/nvme1n1  
-printf "y" | sudo mkfs.ext4 /dev/nvme1n1  
+printf "y" | sudo mkfs.ext4 /dev/nvme1n1
+
+# For copying large amount of files between drives: rsync -ah --info=progress2 [source] [destination]  
   
 # Make folder (if it doesn't already exist) and mount drive  
 sudo mkdir -p /Data1  
@@ -164,3 +169,23 @@ When working with a remote server, if you are not entirely comfortable with the 
 
 ## Usage
 *...To follow...*
+
+
+{
+   "apiKey": "",
+   "project_id": "igv",
+
+   "auth_provider": "Amazon",
+   "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+   "aws_region": "ap-southeast-2",
+   "scope": "email%20openid%20profile",
+   "redirect_uris": [
+     "http://localhost:60151/oauthCallback"
+   "client_id": "7imktrjfl5p1to6kbiceo115pk",
+   "client_secret": "1ign75opko356j563gdsh57k8rkfkgkdv0l9b115ir9lkm005omk",
+   "authorization_endpoint": "https://meyer-lab-igv.auth.us-west-1.amazoncognito.com/login",
+   "token_endpoint": "https://meyer-lab-igv.auth.us-west-1.amazoncognito.com/token",
+   "aws_cognito_fed_pool_id": "us-west-1:71c57749-c5b5-4b58-8034-b70195275c09",
+   "aws_cognito_pool_id": "us-west-1_Bv21MeV6i",
+   "aws_cognito_role_arn": "arn:aws:iam::995302141357:role/Cognito_igvidpoolAuth_Role"
+}

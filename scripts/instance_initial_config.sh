@@ -76,9 +76,9 @@ export PATH=/usr/local/cuda-11.6/bin${PATH:+:${PATH}}
 export LD_LIBRARY_PATH=/usr/local/cuda-11.6/lib64\ ${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
 
 # Install methylartist for analysis ad visualization
-sudo pip install methylartist
-sudo pip install methplotlib
-sudo pip install methplotlib --upgrade
+pip install methylartist
+pip install methplotlib
+pip install methplotlib --upgrade
 
 #install mysql needed to query chromosome sizes for methylartist violin plots
 sudo apt install mysql-client-core-5.7
@@ -96,6 +96,8 @@ if [ ! -d /home/ubuntu/Data1/software/rerio ]; then
 else
   echo "rerio folder aready exists"
 fi
+
+
 
 # Download reference genome
 # For remote server: ../Data1/reference
@@ -124,6 +126,7 @@ else
 fi
 ######
 
+guppy_basecall_server -p auto -l /Data1/seq_data/210614_Raja/megalodon/barcode01_CpG/guppy_log -c res_dna_r941_min_modbases_5mC_CpG_v001.cfg --post_out --quiet -x cuda:all -d /opt/ont/guppy/data
 
 
 

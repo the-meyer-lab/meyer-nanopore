@@ -48,36 +48,61 @@ done
 #Note update target input (ref) and output files!
 #This command takes ~3h on 8GPUs for C Elegans.
 mkdir /Data1/megalodon
-for i in 02; do
+
+# for c elegans, m6A:
+for i in 01; do
 	mkdir /Data2/megalodon_yeast/barcode$i
-	megalodon /Data1/seq_data/210614_Raja/20210614_2006_MN36964_FAQ21673_44f55e74/fast5/split/barcode$i --output-directory /Data2/megalodon_yeast/barcode$i --overwrite --guppy-params "-d /opt/ont/guppy/data" --guppy-server-path /usr/bin/guppy_basecall_server --guppy-config res_dna_r941_min_modbases-all-context_v001.cfg  --outputs mappings mod_mappings per_read_mods --write-mods-text --sort-mappings --reference /Data1/reference/ws235.mmi --device cuda:all --processes 92 --mod-min-prob 0
+	megalodon /Data1/seq_data/210614_Raja/20210614_2006_MN36964_FAQ21673_44f55e74/fast5/split/barcode$i --output-directory /Data1/seq_data/210614_Raja/megalodon/barcode$i --overwrite --guppy-params "-d /opt/ont/guppy/data" --guppy-server-path /usr/bin/guppy_basecall_server --guppy-config res_dna_r941_min_modbases-all-context_v001.cfg  --outputs mappings mod_mappings per_read_mods --write-mods-text --sort-mappings --reference /Data1/reference/ws235.mmi --device cuda:all --processes 92 --mod-min-prob 0
 done
 # Note per_read_mods outputs a db file with per-read per-position modified base scores.
 
-# I think this is no longer necessary with sort flag in megalodon command
-#sort megalodons output bam
-for i in 01;do
-	samtools sort -m 4000M -@ 4 -o /Data1/seq_data/210614_Raja/megalodon/barcode$i/mod_mappings.$i.sorted_v2.bam /Data1/seq_data/210614_Raja/megalodon/barcode$i/mod_mappings.bam
-done
+# for C Elegans CpG 5mC
+megalodon /Data1/seq_data/210614_Raja/20210614_2006_MN36964_FAQ21673_44f55e74/fast5/split/barcode01 --output-directory /Data1/seq_data/210614_Raja/megalodon/barcode01_CpG --overwrite --guppy-params "-d /Data1/software/rerio/basecall_models/" --guppy-server-path /usr/bin/guppy_basecall_server --guppy-config res_dna_r941_min_modbases_5mC_CpG_v001.cfg  --outputs mappings mod_mappings per_read_mods --write-mods-text --sort-mappings --reference /Data1/reference/ws235.mmi --device cuda:all --processes 92 --mod-min-prob 0
+
+# for yeast 6mA
+megalodon /Data1/seq_data/210614_Raja/20210614_2006_MN36964_FAQ21673_44f55e74/fast5/split/barcode02 --output-directory /Data1/seq_data/210614_Raja/megalodon/barcode02_m6A --overwrite --guppy-params "-d /Data1/software/rerio/basecall_models/" --guppy-server-path /usr/bin/guppy_basecall_server --guppy-config res_dna_r941_min_modbases-all-context_v001.cfg --outputs mappings mod_mappings per_read_mods --write-mods-text --sort-mappings --reference /Data1/reference/sacCer3.fa --device cuda:all --processes 92 --mod-min-prob 0
+
+# for yeast CpG 5mC
+megalodon /Data1/seq_data/210614_Raja/20210614_2006_MN36964_FAQ21673_44f55e74/fast5/split/barcode02 --output-directory /Data1/seq_data/210614_Raja/megalodon/barcode02_CpG --overwrite --guppy-params "-d /Data1/software/rerio/basecall_models/" --guppy-server-path /usr/bin/guppy_basecall_server --guppy-config res_dna_r941_min_modbases_5mC_CpG_v001.cfg --outputs mappings mod_mappings per_read_mods --write-mods-text --sort-mappings --reference /Data1/reference/sacCer3.fa --device cuda:all --processes 92 --mod-min-prob 0
+
+# Create bed files for methylartist viz
 
 # Create window labels for violin plot
-bedtools makewindows -g genome.txt -w 500000 > genome.windows.bed
+bedtools makewindows -g ce11_size.txt -w 10000 > ce11_10kb_windows.bed
+bedtools makewindows -g saccer3_size.txt -w 10000 > saccer3_10kb_windows.bed
+
 # genome.txt file with the following format
 # chrom	size
 # chrV	20924180
 # These can be found in per_read_mod_base_calls.db.chrm table
+>sqlite3 per_read_modified_base_calls.db
+sqlite> .headers on
+sqlite> .mode tabs
+sqlite> .output size.txt
+sqlite> select chrm as chrom, chrm_len as size from chrm;
+sqlite> .quit
+
+
 
 # Add name column with name of chromsome
 awk -v f2=ce11_10k_windows.txt ' { c = $1; getline < f2; print $0, c; } ' ce11_10kb_windows.txt  >ce11-10kb_windows_labels.bed
+awk -v f2=sacCer3_10k_windows.txt ' { c = $1; getline < f2; print $0, c; } ' sacCer3_10kb_windows.txt  > sacCer3-10kb_windows_labels.bed
 
 #Generate methylartist .megalodon database for use in segmeth and region plotting
 methylartist db-megalodon -m /Data1/seq_data/210614_Raja/megalodon/barcode01/per_read_modified_base_calls.txt --db /Data2/ce11_ACmeth.db
 #Note need to confirm that motifsize = 2
 # Note this command currently does not work.
 
-methylartist segmeth --bam /Data1/seq_data/210614_Raja/megalodon/barcode01/mod_mappings.01.sorted.bam -i /Data1/reference/ce11-10kb_windows_labels_X.bed -p 96
+methylartist segmeth --bam /Data1/seq_data/210614_Raja/megalodon/barcode01/mod_mappings.bam -i /Data1/reference/ce11-10kb_windows_labels_X.bed -p 96
+methylartist segmeth --bam /Data1/seq_data/210614_Raja/megalodon/barcode02_CpG/mod_mappings.sorted.bam -i /Data1/reference/sacCer3-10kb_windows_labels.bed -p 96
+
 
 methylartist segplot -s ce11-10kb_windows_labels_X.mod_mappings.01.sorted.segmeth.tsv -v
+methylartist segplot -s saccer3_10kb_windows_labels.mod_mappings.sorted.segmeth.tsv -v
+
+methylartist locus --bam /Data1/seq_data/210614_Raja/megalodon/barcode01_CpG/mod_mappings.sorted.bam -i CHROMOSOME_X:2996577-2997578 -p 1,6,1,3,4
+methylartist locus --bam /Data1/seq_data/210614_Raja/megalodon/barcode02_CpG/mod_mappings.sorted.bam -i chrI:100000-101000 -p 1,6,1,3,4
+
 
 methylartist region -i chrX --bam /Data1/seq_data/210614_Raja/megalodon/barcode01/mod_mappings.01.sorted.bam -p 96 -n CG -r /Data1/reference/c_elegans.WS235.genomic.fa --skip_align_plot --panelratios 1,0,1,4 --height 4.5 --genepalette viridis --samplepalette viridis
 
@@ -91,3 +116,9 @@ megalodon_extras modified_bases describe_alphabet --guppy-config res_dna_r941_mi
 #aws s3 sync . s3://bucket/output_directory
   aws s3 sync /seq_data/ "s3://nanopore-1/nanopore first run/"
 
+# For viewing in samtools, all context models should have their modification tags converted using ChEBI standards
+# See section 1.7 https://samtools.github.io/hts-specs/SAMtags.pdf
+samtools view -h -@ 8 mod_mappings.01.sorted.bam | sed 's/A+Y/A+a/g' | sed 's/C+Z/C+m/g' | samtools view -@ 8 -bh -o mod_mappings.01.sorted.m6Aonly.bam
+
+#This is required for viewing in IGV
+#For details on setting up IGV with AWS S3 see: https://umccr.org/blog/igv-amazon-backend-setup/
