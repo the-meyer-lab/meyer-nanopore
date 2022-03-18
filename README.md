@@ -115,7 +115,7 @@ sudo chown -R ubuntu Data1
 ```
 
 #### d. Clone this git repository onto the instance
-Execute the following commands:
+Execute the following commands if installing on ubuntu ([source](https://github.com/cli/cli/blob/trunk/docs/install_linux.md)):
 - Install github command line
 ```bash
 mkdir -p /Data1/git  
@@ -124,6 +124,7 @@ echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githu
 sudo apt update
 sudo apt install gh
 ```
+For other OS see gh CLI installation instructions [here](https://github.com/cli/cli#installation).
 - Configure git with your git user credentials. If you don't have git credentials, follow instructions [here](https://docs.github.com/en/get-started/signing-up-for-github/signing-up-for-a-new-github-account) to create them for the first time. Replace "frnkmxwll" and "ymalina@gmail.com" with your user name and email used to create your github account.
 ```bash
 git config --global user.name "frnkmxwll"
