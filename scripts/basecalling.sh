@@ -18,7 +18,7 @@ screen -S guppy_supervisor
 # guppy_basecaller_supervisor --num_clients 16 --input_path /Data2/fast5 --save_path /Data1 --fast5_out --bam_out --bam_methylation_threshold 0 --config res_dna_r941_min_modbases-all-context_v001.cfg --port 5555 --barcode_kits "SQK-NBD110-24" --trim_barcodes
 # Note: since we are just using guppy for demultiplexing, chose a non-modified base model.
 #Duration: this command takes ~3h on 8 GPUs for c.elegans
-guppy_basecaller_supervisor --num_clients 15 --input_path /Data1/seq_data/210614_Raja/20210614_2006_MN36964_FAQ21673_44f55e74/fast5 --save_path /Data1/seq_data/210614_Raja/fastq_3_1 --fast5_out --bam_out --port 5555 --trim_barcodes --config ./Data1/software/ont-guppy/data/dna_r9.4.1_450bps_hac.cfg --progress_stats_frequency 30 --barcode_kits EXP-NBD104
+guppy_basecaller_supervisor --num_clients 15 --input_path /Data1/seq_data/210614_Raja/20210614_2006_MN36964_FAQ21673_44f55e74/fast5 --save_path /Data1/seq_data/210614_Raja/fastq_3_23 --fast5_out --bam_out --port 5555 --trim_barcodes --config ./Data1/software/ont-guppy/data/dna_r9.4.1_450bps_hac.cfg --progress_stats_frequency 30 --barcode_kits EXP-NBD104
 
 # Our kits: Ligation Sequencing Kit SKU: SQK-LSK109 | SPOT ON FLOW CELL MK 1 R9 VERSION SKU: FLO-MIN106D | Native Barcoding Expansion 1-12 SKU: EXP-NBD104
 # Use this command to determine correct config file: guppy_basecaller --print_workflows

@@ -2,27 +2,27 @@
 ## Purpose  
 The purpose of this repository is to create a data pipeline for the processing and analysis of nanopore sequence data.
 
-## Setup
-### 1. Configure AWS accounts
+## AWS Account setup
 *(skip if you've already configured your AWS account and key pair)*
-#### a. Set up new admin account (if applicable)
+
+### 1. Set up new admin account (if applicable)
 - Organizations > add an aws account
 - Follow instructions
 
-#### b. Set up a new IAM user for individual users
+### 2. Set up a new IAM user for individual users
 - IAM > users > add users
 - Follow instructions
 
-#### c. Create key pair for users who will be accessing instances
+### 3. Create key pair for users who will be accessing instances
 *(This is only required once for each user, and must be kept private.*)
 - EC2 > Key pairs >
 	- Enter name of user key pair will be granted to
 	- Leave defaults: RSA / .pem
 	- Download file, and securely provide to user who will be using it. Delete it once transfer is complete.
 	
-### 2. Configure AWS services
+## Configure AWS services
 *(These steps can be skipped if your EC2 instances, EBV and S3 buckets are already configured.)*
-#### a. Configure a new IAM role that will be granted to EC2 instances allowing for S3 access:
+### 1. Configure a new IAM role that will be granted to EC2 instances allowing for S3 access:
 *(This is only required once when setting up AWS account for first time.)*
 - IAM > Create role > AWS Service
 	- Select use case, in this case allowing EC2 to call AWS services on our behalf.
@@ -31,13 +31,13 @@ The purpose of this repository is to create a data pipeline for the processing a
 - Name role 'EC2toS3' 
 - Create role
 
-#### b. Set up Elastic Block Volume (EBV, hard drive that will be attached to our compute instance)
+#### 2. Set up Elastic Block Volume (EBV, hard drive that will be attached to our compute instance)
 - EC2 > Elastic Block Store > Volumes > Create Volume
 - Select volume type (General Purpose SSD is suitable for most applications)
 - Select desired size
 - Select region (needs to match region where you will be using instance.) For Meyer Lab applications, select us-west-1b
 
-#### c. Set up compute instance
+#### 3. Set up compute instance
 - If desired instance is already configured, select from list and launch. If notm configure new instance with following steps:
 	- EC2 > Instances > Launch Instance > 
 		- Select operating system: recommend Deep Learning AMI (Ubuntu 18.XX) Version XX.XX
@@ -51,13 +51,13 @@ The purpose of this repository is to create a data pipeline for the processing a
 		- Review & Launch > Launch
 			- Assign key pair of users who will be accessing instance. Create new key pair if required by following [[Nanopore Sequencing AWS Setup Manual#c Create key pair for users who will be accessing instances]]
 
-#### d. Attach EBV to instance
+#### 4. Attach EBV to instance
 - EBS > Volumes
 	- Select volume created in [[Nanopore Sequencing AWS Setup Manual#b Set up Elastic Block Volume EBV hard drive that will be attached to our compute instance]]
 	- Actions > Attach Volume >
 		- Select instance
 
-#### e. Set up S3 bucket
+#### 5. Set up S3 bucket
 - S3 > Create bucket
 	- Add bucket name. Recommend a new bucket for each project.
 	- Select region, ensure matches previously selected regions of instances & EBV.
@@ -65,13 +65,14 @@ The purpose of this repository is to create a data pipeline for the processing a
 		-  See standard S3 pricing [here](https://aws.amazon.com/s3/pricing/) to help you decide whether to use versioning. Versioning greatly increases storage utilization, see explanation [here](https://aws.amazon.com/s3/faqs/).
 	- Create bucket.
 
-### 3. Uploading your data to s3
+### Uploading your data to s3
 - From the AWS console, navigate to your S3 bucket created in [[Nanopore Sequencing AWS Setup Manual#e Set up S3 bucket]]
 - Click "Upload" and "Upload Folder"
 - Select folder containing your raw fast5 folders from nanopore sequencing.
 
-### 4. Configuring your instance
+### Configuring your AWS instance
 #### a. Install AWS CLI
+If your command line is not already configure:
 - Follow instructions on installing AWS CLI (Amazon Commandline Interface) [here](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html).
 
 #### b. Connect to instance from your command line
@@ -94,6 +95,10 @@ Excute the following commands:
 ###### Configure EBV drive on instance  
 # Format drives to the correct file system type, and mount them  
 # Note: only do this when mounting drive for first time. This will clear data from an existing drive.
+
+# Determine your drive name (usually of the format nvmeXnX) replace "nvme1n1" in all following commands with your drive name
+# to list available drives: sudo lsblk
+
 # For drives < 2TB in size:
 printf "n\np\n\n\n\nw" | sudo fdisk /dev/nvme1n1  
 # For drives > 2TB in size:
@@ -104,13 +109,11 @@ printf "y" | sudo mkfs.ext4 /dev/nvme1n1
 
 # For copying large amount of files between drives: rsync -ah --info=progress2 [source] [destination]  
   
-# Make folder (if it doesn't already exist) and mount drive  
+# Make folder (if it doesn't already exist) in your base level directory and mount drive
 sudo mkdir -p /Data1  
-# Determine your drive name (usually of the format nvmeXnX)
-# to list available drives: sudo lsblk
-sudo mount /dev/nvme1n1 Data1  
+sudo mount /dev/nvme1n1 /Data1  
 # Change owner of drive  
-sudo chown -R ubuntu Data1  
+sudo chown -R ubuntu /Data1  
 ######  
 ```
 
