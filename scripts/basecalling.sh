@@ -68,7 +68,9 @@ megalodon /Data1/seq_data/210614_Raja/20210614_2006_MN36964_FAQ21673_44f55e74/fa
 # Create bed files for methylartist viz
 
 # Create window labels for violin plot
-bedtools makewindows -g ce11_size.txt -w 10000 > ce11_10kb_windows.bed
+bedtools makewindows -g ce11_size.txt -w 200000 > ce11_200kb_windows.bed
+sed 's/chr/CHROMOSOME_/' ce11_200kb_windows.bed > ce11_200kb_windows_c.bed
+
 bedtools makewindows -g saccer3_size.txt -w 10000 > saccer3_10kb_windows.bed
 
 # genome.txt file with the following format
@@ -86,6 +88,8 @@ sqlite> .quit
 
 # Add name column with name of chromsome
 awk -v f2=ce11_10k_windows.txt ' { c = $1; getline < f2; print $0, c; } ' ce11_10kb_windows.txt  >ce11-10kb_windows_labels.bed
+awk -v f2=ce11_200kb_windows_c.bed ' { c = $1; getline < f2; print $0, c; } ' ce11_200kb_windows_c.bed  > ce11-200kb_windows_labels.bed
+
 awk -v f2=sacCer3_10k_windows.txt ' { c = $1; getline < f2; print $0, c; } ' sacCer3_10kb_windows.txt  > sacCer3-10kb_windows_labels.bed
 
 #Generate methylartist .megalodon database for use in segmeth and region plotting
@@ -95,13 +99,18 @@ methylartist db-megalodon -m /Data1/seq_data/210614_Raja/megalodon/barcode01/per
 
 methylartist segmeth --bam /Data1/seq_data/210614_Raja/megalodon/barcode01/mod_mappings.bam -i /Data1/reference/ce11-10kb_windows_labels_X.bed -p 96
 methylartist segmeth --bam /Data1/seq_data/210614_Raja/megalodon/barcode02_CpG/mod_mappings.sorted.bam -i /Data1/reference/sacCer3-10kb_windows_labels.bed -p 96
+methylartist segmeth --bam /Data1/seq_data/210614_Raja/megalodon/barcode01_CpG/mod_mappings.sorted.bam -i /Data1/reference/ce11-chrm-regions_Xonly.bed -p 24
 
+methylartist segmeth --bam /Data1/seq_data/210614_Raja/megalodon/barcode01_m6A/mod_mappings.01.sorted.m6Aonly.bam -i /Data1/reference/ce11-100kb_windows_labels.bed -p 48
+methylartist segmeth --bam /Data1/seq_data/210614_Raja/megalodon/barcode01_CpG/mod_mappings.sorted.bam -i /Data1/reference/ce11-100kb_windows_labels.bed -p 48
 
 methylartist segplot -s ce11-10kb_windows_labels_X.mod_mappings.01.sorted.segmeth.tsv -v
 methylartist segplot -s saccer3_10kb_windows_labels.mod_mappings.sorted.segmeth.tsv -v
 
-methylartist locus --bam /Data1/seq_data/210614_Raja/megalodon/barcode01_CpG/mod_mappings.sorted.bam -i CHROMOSOME_X:2996577-2997578 -p 1,6,1,3,4
-methylartist locus --bam /Data1/seq_data/210614_Raja/megalodon/barcode02_CpG/mod_mappings.sorted.bam -i chrI:100000-101000 -p 1,6,1,3,4
+methylartist locus --bams /Data1/seq_data/210614_Raja/megalodon/barcode01_CpG/mod_mappings.sorted.bam -i CHROMOSOME_X:2996577-2997578 -p 1,6,1,3,4
+methylartist locus --bams /Data1/seq_data/210614_Raja/megalodon/barcode02_CpG/mod_mappings.sorted.bam -i chrI:100000-101000 -p 1,6,1,3,4
+
+methylartist locus --bams /Data1/seq_data/210614_Raja/megalodon/barcode01_CpG/mod_mappings.sorted.bam,/Data1/seq_data/210614_Raja/megalodon/barcode01_m6A/mod_mappings.01.sorted.m6Aonly.bam -i CHROMOSOME_X:2992077-3002077 -l CHROMOSOME_X:2997071-2997083 --mods "a,m" --motifsize 1 -p 1,6,1,3,4
 
 
 methylartist region -i chrX --bam /Data1/seq_data/210614_Raja/megalodon/barcode01/mod_mappings.01.sorted.bam -p 96 -n CG -r /Data1/reference/c_elegans.WS235.genomic.fa --skip_align_plot --panelratios 1,0,1,4 --height 4.5 --genepalette viridis --samplepalette viridis
@@ -122,3 +131,6 @@ samtools view -h -@ 8 mod_mappings.01.sorted.bam | sed 's/A+Y/A+a/g' | sed 's/C+
 
 #This is required for viewing in IGV
 #For details on setting up IGV with AWS S3 see: https://umccr.org/blog/igv-amazon-backend-setup/
+
+# For alfred QC
+/Data1/sofware/alfred/src/alfred qc -r /Data1/reference/c_elegans.WS235.genomic.fa -j /Data1/viz/qc.json.gz -o /Data1/viz/qc.tsv.gz /Data1/seq_data/210614_Raja/megalodon/barcode01_CpG/mod_mappings.sorted.bam

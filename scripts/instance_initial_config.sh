@@ -82,6 +82,41 @@ pip install methplotlib --upgrade
 
 #install mysql needed to query chromosome sizes for methylartist violin plots
 sudo apt install mysql-client-core-5.7
+
+#install dimelo for visualizations:
+git clone https://github.com/amaslan/dimelo /Data1/software/
+
+#INSTALL ALFRED
+sudo apt install \
+    build-essential g++ \
+    cmake \
+    git-all \
+    liblzma-dev \
+    zlib1g-dev \
+    libbz2-dev \
+    liblzma-dev \
+    libboost-date-time-dev \
+    libboost-program-options-dev \
+    libboost-system-dev \
+    libboost-filesystem-dev \
+    libboost-iostreams-dev
+
+#install boost, requirement for alfred (Bam QC)
+git clone --recursive https://github.com/boostorg/boost.git
+cd boost/
+./bootstrap.sh --prefix=`pwd` --without-icu --with-libraries=iostreams,filesystem,system,program_options,date_time
+./b2
+./b2 headers
+cd .
+
+export BOOSTROOT=/Data1/software/boost
+git clone --recursive https://github.com/tobiasrausch/alfred.git
+cd alfred/
+BOOSTROOT=/Data1/software/boost
+make CMDCXXFLAGS="-isystem $BOOSTROOT" CMDLDFLAGS="-L$BOOSTROOT/stage/lib -Wl,-rpath,$BOOSTROOT/stage/lib" all
+make install
+./bin/alfred -h
+
 ######
 
 ###### Download required files
