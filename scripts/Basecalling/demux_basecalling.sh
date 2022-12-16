@@ -26,8 +26,10 @@ samtools split -@ 10 -f '%*_%!.%.' mod_mappings_barcode.bam
 
 #6) if using IGV for visualization, you need to adjust the mod tags a little bit
 
-#this only fixes the mA tag so can be used to effectively eliminate mC from visualization
-samtools view -h -@ 8 mod_mappings.sorted.bam | sed 's/A+Y/A+a/g' | samtools view -@ 8 -bh -o mod_mappings.sorted.m6Aonly.bam
-
-#this converts both the mA and mC tags
+#this converts both the mA and mC tags to their proper form
 samtools view -h -@ 8 mod_mappings.sorted.bam | sed 's/A+Y/A+a/g' | sed 's/C+Z/C+m/g' | samtools view -@ 8 -bh -o mod_mappings.sorted.m6AplusmC.bam
+
+#7) if you want to only visualize mA or mC, or if you want to only visualize methyl calls above a certain threshold, this script can be used to apply different thresholds to mA and mC for IGV browsing (and if you set a threshold to 256 it will set all scores for that base to 0, allowing you to create a mA only or mC only file).
+samtools view -h mod_mappings.sorted.m6AplusmC.bam | perl ThresholdBAMModCalls_separateAC_v0.pl <threshold mA, e.g. 155> <threshold mC, e.g. 256 to remove> | samtools view -b >mod_mappings.sorted.m6AplusmC.thresholded.bam
+
+
