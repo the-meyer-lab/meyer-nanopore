@@ -19,18 +19,13 @@ sqlite> .output size.txt
 sqlite> select chrm as chrom, chrm_len as size from chrm;
 sqlite> .quit
 
-
-
 # Add name column with name of chromsome
 awk -v f2=ce11_10k_windows.txt ' { c = $1; getline < f2; print $0, c; } ' ce11_10kb_windows.txt  >ce11-10kb_windows_labels.bed
 awk -v f2=ce11_200kb_windows_c.bed ' { c = $1; getline < f2; print $0, c; } ' ce11_200kb_windows_c.bed  > ce11-200kb_windows_labels.bed
 
 awk -v f2=sacCer3_10k_windows.txt ' { c = $1; getline < f2; print $0, c; } ' sacCer3_10kb_windows.txt  > sacCer3-10kb_windows_labels.bed
 
-#Generate methylartist .megalodon database for use in segmeth and region plotting
-methylartist db-megalodon -m /Data1/seq_data/210614_Raja/megalodon/barcode01/per_read_modified_base_calls.txt --db /Data2/ce11_ACmeth.db
-#Note need to confirm that motifsize = 2
-# Note this command currently does not work.
+methylartist segmeth --bam /Data2/seq_data/Tube4_b2_2uM-Hia5_fiber-seq_11_21_22/basecalls/mod_mappings.sorted.m6Aonly.bam -i /Data2/reference/ce11_200kb_windows_c.bed -p 96
 
 methylartist segmeth --bam /Data1/seq_data/210614_Raja/megalodon/barcode01/mod_mappings.bam -i /Data1/reference/ce11-10kb_windows_labels_X.bed -p 96
 methylartist segmeth --bam /Data1/seq_data/210614_Raja/megalodon/barcode02_CpG/mod_mappings.sorted.bam -i /Data1/reference/sacCer3-10kb_windows_labels.bed -p 96
@@ -38,6 +33,8 @@ methylartist segmeth --bam /Data1/seq_data/210614_Raja/megalodon/barcode01_CpG/m
 
 methylartist segmeth --bam /Data1/seq_data/210614_Raja/megalodon/barcode01_m6A/mod_mappings.01.sorted.m6Aonly.bam -i /Data1/reference/ce11-100kb_windows_labels.bed -p 48
 methylartist segmeth --bam /Data1/seq_data/210614_Raja/megalodon/barcode01_CpG/mod_mappings.sorted.bam -i /Data1/reference/ce11-100kb_windows_labels.bed -p 48
+
+methylartist segmeth --bam /Data1/seq_data/20221003_TUBE27Vc_DPY27/basecalls/mod_mappings.sorted.bam -i /Data1/reference/ce11-100kb_windows_labels.bed -p 48
 
 methylartist segplot -s ce11-10kb_windows_labels_X.mod_mappings.01.sorted.segmeth.tsv -v
 methylartist segplot -s saccer3_10kb_windows_labels.mod_mappings.sorted.segmeth.tsv -v
