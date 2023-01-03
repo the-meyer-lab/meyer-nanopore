@@ -47,7 +47,7 @@ Execute commands in "basecalling.sh" file.
 More detailed instructions to follow...
 
 ## Running R Studio Server
-- Launch rocker rstudio docker image (source)
+- Launch rocker rstudio docker image [source](https://rocker-project.org/)
 ```bash
 # Note: Replace "Data1" with path to whatever folder you want mounted and visible in R
  docker run --rm -ti -e PASSWORD=(password) -p 8787:8787 -v /Data1:/home/rstudio/Data1 -e ROOT=TRUE rocker/rstudio
