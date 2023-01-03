@@ -3,14 +3,14 @@ import pandas as pandas
 import numpy as np
 
 
-sampleName = ["X","Autosome"] #"TES_q1" "strong_rex" "weak_rex" from bed column "type"
-type_selected = ["TES_q1","TES_q2","TES_q3","TES_q4"]
+sampleName = ["TSS_q1","TES_q4"] #"TES_q1" "strong_rex" "weak_rex" from bed column "type", "X", "Autosome"
+type_selected = ["TSS_q1","TES_q4"]
 strand_selected = ["+"] #+ and/or -
 bed = "/Data1/reference/tss_tes_rex_combined.bed"
 full_bed = pandas.read_csv(bed,sep='\t')
 mods = "A"
-bam = "/Data1/seq_data/Tube4_b2_2uM-Hia5_fiber-seq_11_21_22/basecalls/mod_mappings.sorted.m6Aonly.bam"
-outDir = "/Data1/seq_data/Tube4_b2_2uM-Hia5_fiber-seq_11_21_22/viz"
+bam = "/Data1/seq_data/TubeH1_021_SDC2-AIDpAux_Hia5_MSssI_12_19/basecalls/mod_mappings.sorted.m6Aonly.bam"
+outDir = "/Data1/seq_data/TubeH1_021_SDC2-AIDpAux_Hia5_MSssI_12_19/viz"
 m6A_thresh = 129 #default is 129
 
 bed=[]

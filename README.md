@@ -45,3 +45,34 @@ git pull
 Execute commands in "basecalling.sh" file.
 
 More detailed instructions to follow...
+
+## Running R Studio Server
+- Launch rocker rstudio docker image (source)
+```bash
+# Note: Replace "Data1" with path to whatever folder you want mounted and visible in R
+ docker run --rm -ti -e PASSWORD=(password) -p 8787:8787 -v /Data1:/home/rstudio/Data1 -e ROOT=TRUE rocker/rstudio
+```
+- In browser on local machine: http://54.241.254.117:8787/
+- Login with username: rstudio and password entered in command above.
+
+## Running Jypyter Notebook Server
+Source: https://docs.aws.amazon.com/dlami/latest/devguide/setup-jupyter-configure-client-windows.html
+- Configuring commands:
+```bash
+# Confugire SSL certificate
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout mykey.key -out mycert.pem
+# Configure jupyter notebook password
+jupyter notebook password
+```
+- Launch server:
+```bash
+# Launch server (remember to navigate to correct root folder)
+jupyter notebook --certfile=~/ssl/mycert.pem --keyfile ~/ssl/mykey.key
+```
+- Connect to server from local machine:
+```bash
+# From terminal:
+ssh -i "H:\My Drive\AWS\yuri-malina.pem" -N -f -L 8888:localhost:8888 ubuntu@ec2-54-241-254-117.us-west-1.compute.amazonaws.com
+# From browser:
+https://localhost:8888/
+```

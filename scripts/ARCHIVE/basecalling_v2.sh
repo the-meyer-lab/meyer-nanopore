@@ -67,3 +67,9 @@ samtools view -h mod_mappings.sorted.bam | perl AddBarcodeToBam.pl /Data2/seq_da
 
 #5) use samtools to split bam by barcode
 samtools split -@ 10 -f '%*_%!.%.' mod_mappings_barcode.bam
+
+#m6A
+megalodon /Data1/seq_data/TubeH1_021_SDC2-AIDpAux_Hia5_MSssI_12_19/fast5/ --output-directory /Data1/seq_data/TubeH1_021_SDC2-AIDpAux_Hia5_MSssI_12_19/basecalls/m6A/ --overwrite --guppy-params "-d /Data1/software/rerio/basecall_models/" --guppy-server-path /Data1/software/ont-guppy/bin/guppy_basecall_server --guppy-config res_dna_r941_min_modbases-all-context_v001.cfg --outputs basecalls mod_basecalls mappings mod_mappings per_read_mods --reference /Data1/reference/ws235.mmi --device cuda:all --processes 92 --mod-min-prob 0
+
+#5mC
+megalodon /Data1/seq_data/TubeH1_021_SDC2-AIDpAux_Hia5_MSssI_12_19/fast5/ --output-directory /Data1/seq_data/TubeH1_021_SDC2-AIDpAux_Hia5_MSssI_12_19/basecalls/5mC/ --overwrite --guppy-params "-d /Data1/software/rerio/basecall_models/" --guppy-server-path /Data1/software/ont-guppy/bin/guppy_basecall_server --guppy-config res_dna_r941_min_modbases_5mC_CpG_v001.cfg --outputs basecalls mod_basecalls mappings mod_mappings per_read_mods --reference /Data1/reference/ws235.mmi --device cuda:all --processes 80 --mod-min-prob 0
