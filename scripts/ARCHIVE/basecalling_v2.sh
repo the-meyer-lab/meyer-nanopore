@@ -4,7 +4,7 @@
 #1) run megalodon on gpu instance & output basecalls + mod-mappings (& mappings just in case)
 
 # Note per-reads-mod required output otherwise weird error is received, need to figure out why: "Alphabet (ACGT) and model number of modified bases (-41) do not agree."
-megalodon /Data2/seq_data/210614_Raja/20210614_2006_MN36964_FAQ21673_44f55e74/fast5/ --output-directory /Data2/seq_data/210614_Raja/megalodon_dmplx/m6A --overwrite --guppy-params "-d /Data2/software/rerio/basecall_models/" --guppy-server-path /Data2/software/ont-guppy/bin/guppy_basecall_server --guppy-config res_dna_r941_min_modbases-all-context_v001.cfg --outputs basecalls mappings mod_mappings per_read_mods --reference /Data2/reference/ws235.mmi --device cuda:all --processes 92 --mod-min-prob 0
+megalodon /Data2/seq_data/210614_Raja/20210614_2006_MN36964_FAQ21673_44f55e74/fast5/ --output-directory /Data2/seq_data/210614_Raja/megalodon_dmplx/m6A --overwrite --guppy-params "-d /Data2/software/rerio/basecall_models/" --guppy-server-path /Data2/software/ont-guppy/bin/guppy_basecall_server --guppy-config res_dna_r941_min_modbases-all-context_v001.cfg --outputs basecalls mappings mod_mappings per_read_mods mod_basecalls --reference /Data2/reference/ws235.mmi --device cuda:all --processes 92 --mod-min-prob 0 --write-mods-text
 
 #2) run guppy_barcoder on the fastq outputs (use of GPU is optional, specified by --device)
 mkdir /Data2/seq_data/210614_Raja/megalodon_dmplx/m6A/fastq
@@ -45,7 +45,7 @@ samtools index mod_mappings_barcode.bam
 
 ### 5mC in CpG context
 # Note per-reads-mod required output otherwise weird error is received, need to figure out why: "Alphabet (ACGT) and model number of modified bases (-41) do not agree."
-megalodon /Data2/seq_data/210614_Raja/20210614_2006_MN36964_FAQ21673_44f55e74/fast5 --output-directory /Data2/seq_data/210614_Raja/megalodon_dmplx/CpG --overwrite --guppy-params "-d /Data2/software/rerio/basecall_models/" --guppy-server-path /Data2/software/ont-guppy/bin/guppy_basecall_server --guppy-config res_dna_r941_min_modbases_5mC_CpG_v001.cfg --outputs basecalls mappings mod_mappings --reference /Data2/reference/ws235.mmi --device cuda:all --processes 92 --mod-min-prob 0
+megalodon /Data2/seq_data/210614_Raja/20210614_2006_MN36964_FAQ21673_44f55e74/fast5 --output-directory /Data2/seq_data/210614_Raja/megalodon_dmplx/CpG --overwrite --guppy-params "-d /Data2/software/rerio/basecall_models/" --guppy-server-path /Data2/software/ont-guppy/bin/guppy_basecall_server --guppy-config res_dna_r941_min_modbases_5mC_CpG_v001.cfg --outputs basecalls mappings mod_mappings per_read_mods mod_basecalls --reference /Data2/reference/ws235.mmi --device cuda:all --processes 92 --mod-min-prob 0 --write-mods-text
 
 #2) run guppy_barcoder on the fastq outputs (use of GPU is optional, specified by --device)
 mkdir /Data2/seq_data/210614_Raja/megalodon_dmplx/CpG/fastq
@@ -69,7 +69,7 @@ samtools view -h mod_mappings.sorted.bam | perl AddBarcodeToBam.pl /Data2/seq_da
 samtools split -@ 10 -f '%*_%!.%.' mod_mappings_barcode.bam
 
 #m6A
-megalodon /Data1/seq_data/TubeH1_021_SDC2-AIDpAux_Hia5_MSssI_12_19/fast5/ --output-directory /Data1/seq_data/TubeH1_021_SDC2-AIDpAux_Hia5_MSssI_12_19/basecalls/m6A/ --overwrite --guppy-params "-d /Data1/software/rerio/basecall_models/" --guppy-server-path /Data1/software/ont-guppy/bin/guppy_basecall_server --guppy-config res_dna_r941_min_modbases-all-context_v001.cfg --outputs basecalls mod_basecalls mappings mod_mappings per_read_mods --reference /Data1/reference/ws235.mmi --device cuda:all --processes 92 --mod-min-prob 0
+megalodon /Data1/seq_data/TubeH1_021_SDC2-AIDpAux_Hia5_MSssI_12_19/fast5/ --output-directory /Data1/seq_data/TubeH1_021_SDC2-AIDpAux_Hia5_MSssI_12_19/basecalls/m6A/ --overwrite --guppy-params "-d /Data1/software/rerio/basecall_models/" --guppy-server-path /Data1/software/ont-guppy/bin/guppy_basecall_server --guppy-config res_dna_r941_min_modbases-all-context_v001.cfg --outputs basecalls mod_basecalls mappings mod_mappings per_read_mods --reference /Data1/reference/ws235.mmi --device cuda:all --processes 92 --mod-min-prob 0 --write-mods-text
 
 #5mC
-megalodon /Data1/seq_data/TubeH1_021_SDC2-AIDpAux_Hia5_MSssI_12_19/fast5/ --output-directory /Data1/seq_data/TubeH1_021_SDC2-AIDpAux_Hia5_MSssI_12_19/basecalls/5mC/ --overwrite --guppy-params "-d /Data1/software/rerio/basecall_models/" --guppy-server-path /Data1/software/ont-guppy/bin/guppy_basecall_server --guppy-config res_dna_r941_min_modbases_5mC_CpG_v001.cfg --outputs basecalls mod_basecalls mappings mod_mappings per_read_mods --reference /Data1/reference/ws235.mmi --device cuda:all --processes 80 --mod-min-prob 0
+megalodon /Data1/seq_data/TubeH1_021_SDC2-AIDpAux_Hia5_MSssI_12_19/fast5/ --output-directory /Data1/seq_data/TubeH1_021_SDC2-AIDpAux_Hia5_MSssI_12_19/basecalls/5mC/ --overwrite --guppy-params "-d /Data1/software/rerio/basecall_models/" --guppy-server-path /Data1/software/ont-guppy/bin/guppy_basecall_server --guppy-config res_dna_r941_min_modbases_5mC_CpG_v001.cfg --outputs basecalls mod_basecalls mappings mod_mappings per_read_mods --reference /Data1/reference/ws235.mmi --device cuda:all --processes 80 --mod-min-prob 0 --write-mods-text

@@ -50,7 +50,7 @@ More detailed instructions to follow...
 - Launch rocker rstudio docker image [source](https://rocker-project.org/)
 ```bash
 # Note: Replace "Data1" with path to whatever folder you want mounted and visible in R
- docker run --rm -ti -e PASSWORD=(password) -p 8787:8787 -v /Data1:/home/rstudio/Data1 -e ROOT=TRUE rocker/rstudio
+ sudo docker run --rm -ti -v /Data1:/home/rstudio/Data1 -e PASSWORD=jupyter -e ROOT=true -p 8787:8787 rocker/rstudiov2
 ```
 - In browser on local machine: http://54.241.254.117:8787/
 - Login with username: rstudio and password entered in command above.
@@ -76,3 +76,24 @@ ssh -i "H:\My Drive\AWS\yuri-malina.pem" -N -f -L 8888:localhost:8888 ubuntu@ec2
 # From browser:
 https://localhost:8888/
 ```
+
+### Connecting to SQLite server
+source: https://github.com/coleifer/sqlite-web
+- Configuring commands
+```bash
+ pip install sqlite-web
+```
+
+- Launch server
+```bash
+sqlite_web --ad-hoc --password path_to_db 
+```
+- Connect to server from local machine:
+Run the following on local terminal:
+```bash
+ssh -i "H:\My Drive\AWS\yuri-malina.pem" -N -f -L 8080:localhost:8080 ubuntu@ec2-54-241-254-117.us-west-1.compute.amazonaws.com
+```
+Note you may need to replace the port number with the appropriate number from the output of the command used to launch the server.
+
+- Connect to server from local machine:
+https://localhost:8080/
