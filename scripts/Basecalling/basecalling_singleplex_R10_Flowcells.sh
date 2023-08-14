@@ -1,6 +1,11 @@
 ### Script for basecalling with Bonito
+### Author: Yuri Malina
+### Contact: ymalina@berkeley.edu
+### Organization: Meyer Lab at UC Berkeley
+
 #!/bin/bash
 
+### REQUIREMENTS:
 # Install Dorado instructions:
 # https://community.nanoporetech.com/posts/how-can-install-dorado-via
 # https://github.com/nanoporetech/dorado
