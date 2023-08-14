@@ -9,7 +9,7 @@ import os.path
 #if not os.path.exists("output/"):
 #    os.makedirs("output/")
 
-m6a_fwd_H_name = "/Data1/seq_data/TubeH1_021_SDC2-AIDpAux_Hia5_MSssI_12_19/wig/H_modified_bases.6mA.fwd_strand.wig"
+'''m6a_fwd_H_name = "/Data1/seq_data/TubeH1_021_SDC2-AIDpAux_Hia5_MSssI_12_19/wig/H_modified_bases.6mA.fwd_strand.wig"
 m6a_rev_H_name = "/Data1/seq_data/TubeH1_021_SDC2-AIDpAux_Hia5_MSssI_12_19/wig/H_modified_bases.6mA.rev_strand.wig"
 m6a_fwd_D_name = "/Data1/seq_data/TubeD1a_N2_Fiberseq_Hia5_MSssI_12_22_22/wig/D_modified_bases.6mA.fwd_strand.wig"
 m6a_rev_D_name = "/Data1/seq_data/TubeD1a_N2_Fiberseq_Hia5_MSssI_12_22_22/wig/D_modified_bases.6mA.rev_strand.wig"
@@ -31,10 +31,29 @@ wig_file4_obj = open(wig_file_name4,"r")
 wig_file4 = io.StringIO(wig_file4_obj.read())
 
 # Take in output file name
-out_file_name = "D_modified_bases.6mA.merged_strand_normH.wig"
+out_file_name = "D_modified_bases.6mA.merged_strand_normH.wig"'''
 
+# Define function that normalizes wig file to max m6A probability
+def norm_wig(wig_file1):
+  # Wig file 2 correction factor
+  correction_factor = 1/256
+
+  norm_file = io.StringIO()
+  for line in wig_file1:
+    if line[0].isdigit():
+      position, value = line.strip().split()
+      if (float(value) * correction_factor) > 1:
+        normalized_value = str(1)
+      else:
+        normalized_value = str(float(value) * correction_factor)
+      norm_file.write(position + ' ' + normalized_value + '\n')
+    else:
+      norm_file.write(line)
+  norm_file.seek(0)
+  return norm_file
+  
 # Define function that takes in two wig file names, and returns a iostring object of the normalized second file.
-def normalize_wig(wig_file1, wig_file2):
+def normalize_wigs(wig_file1, wig_file2):
   print("NORMALIZING", wig_file1, " TO ", wig_file2)
   #with open(wig_file_name1, 'r') as wig_file1, open(wig_file_name2, 'r') as wig_file2:
   # Uncomment below to process limited number of lines
@@ -266,12 +285,12 @@ def write_wig(wig_file1,out_file_path):
   with open(out_file_path, 'w') as out_file:
     out_file.write(wig_file1.read())
 
-Hmerged_wig = merge_wig(wig_file1,wig_file2)
+'''Hmerged_wig = merge_wig(wig_file1,wig_file2)
 Dmerged_wig = merge_wig(wig_file3,wig_file4)
 
 # Normalize last 3 wigs to first
 wig_file1_norm = Hmerged_wig
-wig_file2_norm = normalize_wig(Hmerged_wig,Dmerged_wig)
+wig_file2_norm = normalize_wigs(Hmerged_wig,Dmerged_wig)
 
 # Output normalized files
 #write_wig(wig_file1_norm,"m6A_fwd_norm.wig")
@@ -296,7 +315,7 @@ inverted_wig2 = invert_wig(wig_file2_norm,10)
 # Write wig
 write_wig(inverted_wig1,os.path.join("/Data1/seq_data/TubeH1_021_SDC2-AIDpAux_Hia5_MSssI_12_19/wig/output/", "H_modified_bases.6mA.merged_strand_NOnorm_10SCALE.wig"))
 write_wig(inverted_wig2,os.path.join("/Data1/seq_data/TubeD1a_N2_Fiberseq_Hia5_MSssI_12_22_22/wig/output/", "D_modified_bases.6mA.merged_strand_Hnorm_10SCALE.wig"))
-
+'''
 # DPOS Commands
 '''
 with open(wig_file_name, 'r') as wig_file:
