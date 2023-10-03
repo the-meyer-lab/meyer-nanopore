@@ -52,7 +52,7 @@ samtools view -h mod_mappings.sorted.bam | perl AddBarcodeToBam.pl /Data2/seq_da
 
 samtools view -h mod_mappings.sorted.bam | perl AddBarcodeToBam.pl /output/path/demux/barcoding_summary.txt 04 05 06 | samtools view -b >mod_mappings_barcode.bam
 
-samtools view -h mod_mappings.sorted.bam | perl /Data1/git/meyer-nanopore/scripts/Basecalling/AddBarcodeToBam.pl demux/barcoding_summary.txt 01 02 03 04 05 06 07 08 09 10 | samtools view -b >mod_mappings_barcode.bam
+samtools view -h demux/mod_mappings.sorted.bam | perl /Data1/git/meyer-nanopore/scripts/Basecalling/AddBarcodeToBam_R9_Flowcells.pl demux/barcoding_summary.txt 01 02 03 04 05 06 07 08 09 10 | samtools view -b >mod_mappings_barcode.bam
 
 #this can be trivially parellized by chromosome, for example:
 #for i in chr1 chr2 chr3;do

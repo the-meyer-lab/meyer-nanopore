@@ -285,6 +285,14 @@ def write_wig(wig_file1,out_file_path):
   with open(out_file_path, 'w') as out_file:
     out_file.write(wig_file1.read())
 
+
+def bam_mod_dict_to_wig(bam_file,output_file,bed_file):
+  # Read in .bam file; If bam file is null or incorrect, return error message.
+  # If bedfile, for each region in bedfile get each 
+  # Write track line
+  track_line = 'track type=wiggle_0 name="6mA" description="6mA" visibility=full color=0,0,0 altColor=0,0,0 priority=20\n'
+  #
+
 '''Hmerged_wig = merge_wig(wig_file1,wig_file2)
 Dmerged_wig = merge_wig(wig_file3,wig_file4)
 
@@ -368,3 +376,13 @@ with open(wig_file_name, 'r') as wig_file:
         # Print a newline after the progress message
         print()
 '''
+
+# bash command to create new conda env called "DPOS" with python 3.7, rpy2 and all software dependencies
+# conda create -n DPOS python=3.7 rpy2
+
+# https://github.com/epi2me-labs/modbam2bed
+# conda activate modbam2bed
+# modbam2bed --extended -m 6mA -r CHROMOSOME_I:10000-100000 --threshold 0.5 /Data1/reference/c_elegans.WS235.genomic.fa ["/Data1/seq_data/AH_N2_SDC2aid_AuxRem_fiberseq_8_19_23/combined_pod5/barcode07/basecalls/barcode07.mod_mappings.sorted.bam","/Data1/seq_data/AH_N2_SDC2aid_AuxRem_fiberseq_8_19_23/combined_pod5/barcode08/basecalls/barcode08.mod_mappings.sorted.bam"]
+#
+# ["/Data1/seq_data/AH_N2_SDC2aid_AuxRem_fiberseq_8_19_23/pod5_pass/barcode07/basecalls/barcode07.mod_mappings.sorted.bam","/Data1/seq_data/AH_N2_SDC2aid_AuxRem_fiberseq_8_19_23/pod5_pass/barcode08/basecalls/barcode08.mod_mappings.sorted.bam"]
+
