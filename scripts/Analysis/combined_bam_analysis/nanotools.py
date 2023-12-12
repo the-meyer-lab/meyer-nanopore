@@ -15,13 +15,20 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from scipy.signal import find_peaks
 from io import StringIO
+import inspect
 import random
-
 import pysam
 from scipy import stats
 import multiprocessing # used for parallel processing
 from multiprocessing import Pool # used for parallel processing
 import plotly.io as pio
+import plotly.express as px
+import plotly.graph_objects as go
+from typing import Optional
+import pyBigWig
+from scipy.signal import find_peaks
+import string
+
 
 def filter_bed_file(bed_file,sample_source,selection,chromosome_selected,chr_type_selected,type_selected,strand_selected,max_regions,bed_window):
     """ Function takes in a bed file and filters it based on the following criteria. Saves 1 bed file per sample source type.
@@ -99,7 +106,7 @@ def filter_bed_file(bed_file,sample_source,selection,chromosome_selected,chr_typ
         #    temp_bed.sort_values(by=["chromosome","start"],ascending=True,inplace=True)
         #    temp_bed.reset_index(drop=True, inplace=True)
 
-        print("Saving following bed file: ",temp_bed)
+        display_sample_rows(temp_bed, 5)
         # select only path from bed_file
         bed_file_path = os.path.dirname(bed_file)
 
@@ -387,14 +394,15 @@ def frequency_table(df, n_dist=None):
 
 # Define function that takes in a nucleosome RPL frequency tables, plots the distribution
 # and returns the peak values as a dataframe.
-def plot_NRL_dist(data, chromosome_name, color, output_prefix):
+def plot_NRL_dist(data, chromosome_name, color, output_prefix,smoothing_val = None):
     # Clear .plt
-    plt.clf()
-    fig = sns.displot(data, x="dist", color=color, label=chromosome_name, kind="kde", cut=-0.5, height=6, aspect=1.5, linewidth=3)
+    #plt.clf()
+    sns.set_style("white")
+    fig = sns.displot(data, x="dist", color=color,label=chromosome_name, kind="kde", height=6, aspect=1.5, linewidth=3,bw_adjust=smoothing_val,clip=(-1000,1000))
     plt.title(f'{output_prefix}\n{chromosome_name} Nucleosome-Nucleosome Distance', fontsize=15)
     ax1 = fig.facet_axis(0, 0)
-    ax1.set_xlim(0, 1200)
-    ax1.set_ylim(0.00045, )
+    #ax1.set_xlim(0, 1200)
+    #ax1.set_ylim(0, 0.002)
 
     line_x = ax1.lines[0].get_xdata() # Get the x data of the distribution
     line_y = ax1.lines[0].get_ydata() # Get the y data of the distribution
@@ -402,21 +410,51 @@ def plot_NRL_dist(data, chromosome_name, color, output_prefix):
     peak_number = np.array(range(1, len(peaks_index[0]) + 1))
     peaks_x = [line_x[i] for i in peaks_index[0]]
     peaks = pd.DataFrame({'x': peak_number, f'{chromosome_name}-peak-position': peaks_x})
-    peaks.drop(peaks.tail(len(peak_number) - 5).index, inplace=True)
-    inc = 0
+    #peaks.drop(peaks.tail(len(peak_number)-5).index, inplace=True)
+    # pos_peaks = number of peaks > 0
+    neg_peaks = len(peaks[peaks[f'{chromosome_name}-peak-position'] < 0])
+    inc = -neg_peaks
     for i, _x in enumerate(peaks[f'{chromosome_name}-peak-position']):
-        inc += 1
         # add a vertical line for the value
         ax1.axvline(x=_x, lw=1, ls=":", color='grey')
         # add a label below the line
-        ax1.text(_x, 0.000465, str(int(_x)), ha='center', fontsize=10)
-        ax1.text(_x, 0.00047, "N+" + str(inc), ha='center', fontsize=10)
+        ax1.text(_x, 0.00001, str(int(_x)), ha='center', fontsize=10)
+        if inc == 0:
+            inc+= 1
+            #ax1.text(_x, 0.0002, "N", ha='center', fontsize=10)
+        if inc >0:
+            ax1.text(_x, 0.0002, "N+" + str(inc), ha='center', fontsize=10)
+        else:
+            ax1.text(_x, 0.0002, "N" + str(inc), ha='center', fontsize=10)
+        inc += 1
     ax1.legend(loc="best")
     plt.xlabel('nucleosome-nucleosome distance (bp)', fontsize=12)
-    fig.savefig(f'jupyter_output/{output_prefix}.png', dpi=300, bbox_inches='tight')
-    fig.savefig(f'jupyter_output/{output_prefix}.svg', bbox_inches='tight')
+    fig.savefig(f'images/{output_prefix}.png', dpi=300, bbox_inches='tight')
+    fig.savefig(f'images/{output_prefix}.svg', bbox_inches='tight')
+
     plt.show()
-    return peaks
+    # return fig and peaks
+    return peaks,fig
+
+def plot_NRL_dist_compare(data, chromosome_name, output_prefix,smoothing_val = None,norm_bool=True,hue='condition',window=1000):
+    # Clear .plt
+    #plt.clf()
+    sns.set_style("white")
+    fig = sns.displot(data, x="dist", hue = hue,label=chromosome_name, kind="kde", height=6, aspect=1.5, linewidth=3,common_norm=norm_bool,clip=(-window,window),bw_adjust=smoothing_val)
+    plt.title(f'{output_prefix}\n{chromosome_name} Nucleosome-Nucleosome Distance', fontsize=15)
+    ax1 = fig.facet_axis(0, 0)
+    #ax1.set_xlim(0, 1200)
+    #ax1.set_ylim(0.00045, )
+    #ax1.set_ylim(0, 0.002)
+
+    ax1.legend(loc="best")
+    plt.xlabel('nucleosome-nucleosome distance (bp)', fontsize=12)
+    # set theme 
+    #fig.savefig(f'images/{output_prefix}.png', dpi=300, bbox_inches='tight')
+    #fig.savefig(f'images/{output_prefix}.svg', bbox_inches='tight')
+    #plt.show()
+    # return fig and peaks
+    return plt
 
 def plot_NRL_regression(dataframe, title, output_prefix,equation_table):
     # set default sns background to white
@@ -484,6 +522,153 @@ def filter_nucs_by_features(data_df, bed_tss, region_cutoff):
 
     return result_df
 
+
+
+
+
+### Calculate bam summary statistics
+def get_summary_from_bam(sampling_frac: float, a_threshold: float, modkit_path: str,bam_path: str,each_condition: str,each_exp_id: str, chromosome: Optional[str] = None, start: Optional[int] = None, end: Optional[int] = None) -> pd.DataFrame:
+    """
+    Fetches data from the given bam file using modkit and returns it as a pandas DataFrame.
+
+    Parameters:
+    - m_threshold (float): Threshold for 'm'.
+    - a_threshold (float): Threshold for 'a'.
+    - bam_path (str): Path to the bam file.
+
+    Returns:
+    - DataFrame: Pandas DataFrame containing the fetched data.
+
+    "--mod-thresholds",
+        f"m:{m_threshold}",
+        "--mod-thresholds",
+        f"a:{a_threshold}",
+
+    """
+
+    command = [
+        modkit_path,
+        "summary",
+        "--ignore",
+        "m",
+        "--threads",
+        "6",
+        "--sampling-frac",
+        f"{sampling_frac}",
+        "--seed",
+        "10",
+        #"--mod-thresholds",
+        #f"a:{a_threshold}",
+        #"--no-filtering",
+        "--filter-threshold",
+        f"A:{1-a_threshold}",
+        "--mod-thresholds",
+        f"a:{a_threshold}",
+        "--log-filepath",
+        f"temp_files/modkit_summary_{each_condition}_{each_exp_id}.log"
+    ]
+
+    # if chromosome, start and end are not None, add the region argument
+    if chromosome is not None and start is not None and end is not None:
+        region_argument = f"{chromosome}:{start}-{end}"
+        command.extend(["--region", region_argument])
+
+    command.extend([bam_path])
+
+    result = subprocess.run(command,  text=True, capture_output=True)
+    if chromosome is None:
+        print('stdout:')
+        print(result.stdout)
+
+    # Extract only the table data starting from the column names
+    # Split the stdout using the substring
+    split_data = result.stdout.split(" base  ")
+
+    # Check if we have at least two items after the split
+    if len(split_data) > 1:
+        table_data = "base " + split_data[1]  # Adding back the column name
+    else:
+        # Here you can decide on what to do when the substring doesn't exist
+        # For this example, I'll return an empty DataFrame
+        print("Warning: Expected substring 'base' not found in the output.")
+        return pd.DataFrame(columns=['condition', 'exp_id'])
+
+    # Convert the extracted data to a DataFrame
+    df = pd.read_csv(StringIO(table_data), sep="\s+", engine='python')
+
+    # Add condition column
+    df["condition"] = each_condition
+    df["exp_id"] = each_exp_id
+
+    return df
+
+def display_sample_rows(df, n=5):
+    frame = inspect.currentframe().f_back
+    varname = [k for k, v in frame.f_locals.items() if v is df][0]
+
+    # if length of df is less than n then display all rows
+    if len(df) < n:
+        n = len(df)
+        print(f"| {varname} | first {n} out of total {len(df)} rows.")
+        sampled_df = df.head(n)
+    else:
+        print(f"| {varname} | first {n}, random {n} and last {n} out of total {len(df)} rows.")
+        sampled_df = pd.concat([df.head(n), df.sample(n=n, random_state=1), df.tail(n)], ignore_index=True)
+    display(sampled_df)
+
+#take in a list of bed file paths and return a single bed file with all regions formated for modkit
+# also take a boolean on whether to down sample autosomes, and whether to select opp strands for regions
+# saves output to temp file
+def generate_modkit_bed(new_bed_files, down_sample_autosome, select_opp_strand, output_name):
+    # Initialize an empty DataFrame to store the combined data from all bed files
+    combined_bed_df = pd.DataFrame()
+
+    # Read each bed file and append it to the combined DataFrame
+    for each_bed in new_bed_files:
+        bed_path = each_bed[:-3]
+        temp_df = pd.read_csv(bed_path, sep="\t", header=None)
+        combined_bed_df = combined_bed_df.append(temp_df)
+
+    # Drop the last column
+    combined_bed_df.drop(combined_bed_df.columns[len(combined_bed_df.columns)-1], axis=1, inplace=True)
+    combined_bed_df.drop(combined_bed_df.columns[len(combined_bed_df.columns)-1], axis=1, inplace=True)
+
+    # Insert two "." columns before the last column
+    combined_bed_df.insert(len(combined_bed_df.columns) - 1, len(combined_bed_df.columns) - 1, ".", allow_duplicates=True)
+    combined_bed_df.insert(len(combined_bed_df.columns) - 1, len(combined_bed_df.columns) - 1, ".", allow_duplicates=True)
+
+
+    # Reset the column labels
+    combined_bed_df.columns = range(len(combined_bed_df.columns))
+
+    # Downsample autosome genes if specified
+    if down_sample_autosome and combined_bed_df[0].str.contains("X").sum() < len(combined_bed_df) - combined_bed_df[0].str.contains("X").sum():
+        x_genes = combined_bed_df[combined_bed_df[0].str.contains("X")]
+        autosome_genes = combined_bed_df[~combined_bed_df[0].str.contains("X")].sample(n=len(x_genes), random_state=1)
+        combined_bed_df = pd.concat([x_genes, autosome_genes], ignore_index=True)
+
+    # Select opposite strands if specified
+    if select_opp_strand:
+        minus_strand_df = combined_bed_df[combined_bed_df[5] == "-"].copy()
+        minus_strand_df[5] = "+"
+
+        plus_strand_df = combined_bed_df[combined_bed_df[5] == "+"].copy()
+        plus_strand_df[5] = "-"
+
+        combined_bed_df = pd.concat([combined_bed_df, minus_strand_df, plus_strand_df], ignore_index=True)
+
+    # Sort DataFrame and reset index
+    combined_bed_df.sort_values([0, 1], inplace=True)
+    combined_bed_df.reset_index(drop=True, inplace=True)
+
+    # Save DataFrame to file
+    combined_bed_df.to_csv(output_name, sep="\t", header=False, index=False)
+
+    # Renaming combined_bed_df to modkit_bed_df to fulfill your requirement
+    modkit_bed_df = combined_bed_df
+
+    return modkit_bed_df
+
 ### Functions to return sample of read lengths to a dataframe, used for calculating N50 statistics
 def extract_n50_from_bam(bam_file, fraction_to_sample=0.01):
     # Get the total number of reads in the BAM file
@@ -517,6 +702,14 @@ def extract_n50_from_bam(bam_file, fraction_to_sample=0.01):
 
     return df
 
+def process_bam_file_for_n50(args):
+    bam_file, condition, exp_id = args
+    print(f"Starting on: {bam_file}, {condition}")
+    temp_df = extract_n50_from_bam(bam_file, 0.1)
+    temp_df['condition'] = condition
+    temp_df['exp_id'] = exp_id
+    return temp_df
+
 # Function to calculate N50
 def calculate_n50(lengths):
     sorted_lengths = sorted(lengths, reverse=True)
@@ -526,3 +719,199 @@ def calculate_n50(lengths):
         current_length += length
         if current_length >= half_total_length:
             return length
+
+def calculate_and_plot_n50(new_bam_files, conditions, exp_ids):
+    # Your original process_bam_file function
+
+    # Create a list of arguments
+    args_list = [(bam_file, condition, exp_id) for bam_file, condition, exp_id in zip(new_bam_files, conditions, exp_ids)]
+
+    # Initialize an empty DataFrame to hold the results
+    combined_n50_df = pd.DataFrame()
+
+    # Use a process pool to process the BAM files in parallel
+    with Pool() as pool:  # Using all available CPUs
+        results = pool.map(process_bam_file_for_n50, args_list)
+
+    # Append the results to the combined DataFrame
+    for temp_df in results:
+        combined_n50_df = combined_n50_df.append(temp_df, ignore_index=True)
+
+    # Reset the index
+    combined_n50_df.reset_index(drop=True, inplace=True)
+
+    # Calculate N50 for each 'condition' and create a new DataFrame
+    n50_data = []
+    for name, group in combined_n50_df.groupby('condition'):
+        n50_value = calculate_n50(group['query_length'])
+        n50_data.append([n50_value, name])
+
+    n50_df = pd.DataFrame(n50_data, columns=['N50', 'condition'])
+
+    # Create the bar chart using Plotly
+    fig = px.bar(n50_df, x='condition', y='N50', color='condition', title='N50 by Condition', template='plotly_white', text='N50')
+    fig.update_layout(autosize=False, width=400, height=400)
+    return fig
+
+#Source: https://stackoverflow.com/questions/67505252/plotly-box-p-value-significant-annotation
+def add_p_value_annotation(fig, array_columns, subplot=None,
+                           _format=dict(interline=0.07, text_height=1.07, color='black')):
+    ''' Adds notations giving the p-value between two box plot data (t-test two-sided comparison)
+
+    Parameters:
+    ----------
+    fig: figure
+        plotly boxplot figure
+    array_columns: np.array
+        array of which columns to compare
+        e.g.: [[0,1], [1,2]] compares column 0 with 1 and 1 with 2
+    subplot: None or int
+        specifies if the figures has subplots and what subplot to add the notation to
+    _format: dict
+        format characteristics for the lines
+
+    Returns:
+    -------
+    fig: figure
+        figure with the added notation
+    '''
+    # Specify in what y_range to plot for each pair of columns
+    y_range = np.zeros([len(array_columns), 2])
+    for i in range(len(array_columns)):
+        y_range[i] = [1.01 + i * _format['interline'], 1.02 + i * _format['interline']]
+
+    # Get values from figure
+    fig_dict = fig.to_dict()
+
+    # Get indices if working with subplots
+    if subplot:
+        if subplot == 1:
+            subplot_str = ''
+        else:
+            subplot_str = str(subplot)
+        indices = []  # Change the box index to the indices of the data for that subplot
+        for index, data in enumerate(fig_dict['data']):
+            # print(index, data['xaxis'], 'x' + subplot_str)
+            if data['xaxis'] == 'x' + subplot_str:
+                indices = np.append(indices, index)
+        indices = [int(i) for i in indices]
+        print((indices))
+    else:
+        subplot_str = ''
+
+    # Print the p-values
+    for index, column_pair in enumerate(array_columns):
+        if subplot:
+            data_pair = [indices[column_pair[0]], indices[column_pair[1]]]
+        else:
+            data_pair = column_pair
+
+        # Mare sure it is selecting the data and subplot you want
+        #print('0:', fig_dict['data'][data_pair[0]]['name'], fig_dict['data'][data_pair[0]]['xaxis'])
+        #print('1:', fig_dict['data'][data_pair[1]]['name'], fig_dict['data'][data_pair[1]]['xaxis'])
+
+        # Get the p-value
+        pvalue = stats.ttest_ind(
+            fig_dict['data'][data_pair[0]]['y'],
+            fig_dict['data'][data_pair[1]]['y'],
+            equal_var=False,
+        )[1]
+        if pvalue >= 0.05:
+            symbol = 'ns'
+        elif pvalue >= 0.01:
+            symbol = '*'
+        elif pvalue >= 0.001:
+            symbol = '**'
+        else:
+            symbol = '***'
+
+        y_adjust = -0.1
+        # Vertical line
+        fig.add_shape(type="line",
+                      xref="x" + subplot_str, yref="y" + subplot_str + " domain",
+                      x0=column_pair[0], y0=y_range[index][0]+y_adjust,
+                      x1=column_pair[0], y1=y_range[index][1]+y_adjust,
+                      line=dict(color=_format['color'], width=2, )
+                      )
+        # Horizontal line
+        fig.add_shape(type="line",
+                      xref="x" + subplot_str, yref="y" + subplot_str + " domain",
+                      x0=column_pair[0], y0=y_range[index][1]+y_adjust,
+                      x1=column_pair[1], y1=y_range[index][1]+y_adjust,
+                      line=dict(color=_format['color'], width=2, )
+                      )
+        # Vertical line
+        fig.add_shape(type="line",
+                      xref="x" + subplot_str, yref="y" + subplot_str + " domain",
+                      x0=column_pair[1], y0=y_range[index][0]+y_adjust,
+                      x1=column_pair[1], y1=y_range[index][1]+y_adjust,
+                      line=dict(color=_format['color'], width=2, )
+                      )
+        ## add text at the correct x, y coordinates
+        ## for bars, there is a direct mapping from the bar number to 0, 1, 2...
+        fig.add_annotation(dict(font=dict(color=_format['color'], size=14),
+                                x=(column_pair[0] + column_pair[1]) / 2,
+                                y=y_range[index][1] * _format['text_height']+y_adjust, #+ 0.075,
+                                showarrow=False,
+                                text=symbol,
+                                textangle=0,
+                                xref="x" + subplot_str,
+                                yref="y" + subplot_str + " domain"
+                                ))
+    return fig
+
+def create_bigwig_trace(filepath, plot_df):
+    # check that file_path exists and is a bigWig file otherwise return error
+    if not os.path.isfile(filepath):
+        print("Error: File not found")
+        return None
+    min_pos = plot_df['ref_position'].min()
+    min_rel_pos= plot_df['rel_pos'].min()
+    max_pos = plot_df['ref_position'].max()
+    max_rel_pos = plot_df['rel_pos'].max()
+    chromosome = plot_df['chrom'].iloc[0]  # Assuming all rows have the same chromosome
+    # replace "CHROMOSOME" with "chr" in chromosome name
+    chromosome = chromosome.replace("CHROMOSOME_", "chr")
+
+    # Open the bigWig file
+    bw = pyBigWig.open(filepath)
+
+    # Extract the region of interest
+    values = bw.values(chromosome, min_pos, max_pos)
+    #print("values:",values)
+    bw.close()
+
+    # Find peaks
+    peaks, _ = find_peaks(values)
+
+    # Create the subplot for the bigWig data
+    trace = go.Scatter(
+        x=list(range(min_rel_pos, max_rel_pos)),
+        y=values,
+        mode='lines',
+        name='BigWig Data',
+        # set color to grey
+        line=dict(color='grey', width=2)
+    )
+
+    traces = [trace]
+
+    # Adding peak lines to the trace
+    peak_traces = []
+    for peak in peaks:
+        peak_line = go.Scatter(
+            x=[peak + min_rel_pos, peak + min_rel_pos],
+            y=[min(values), max(values)],  # Assuming you want the line to span the full range of the y-axis
+            mode='lines',
+            name='Peak',
+            showlegend=False,
+            line=dict(color='grey', width=0.5, dash='dash')
+        )
+        traces.append(peak_line)
+
+    return traces
+
+# generate random alphanumeric code with default 6 characters
+def random_alpha_numeric(length=6):
+    letters_and_digits = string.ascii_letters + string.digits
+    return ''.join((random.choice(letters_and_digits) for i in range(length)))

@@ -13,8 +13,8 @@
 # dorado download --model all
 
 # Define variables:
-INDIR="/Data1/seq_data/AI_N2_dimelo_antiDPY27_mpx_8_19_23/no_sample/20230819_2320_X1_FAX20498_df831e96/pod5_pass/barcode06"
-OUTFOLDER="/Data1/seq_data/AI_N2_dimelo_antiDPY27_mpx_8_19_23/no_sample/20230819_2320_X1_FAX20498_df831e96/basecalls"
+INDIR="/Data1/seq_data/AF_060_ama1-3xGFPnb_GFP-Hia5_dimelo_12_1/no_sample/20231201_2151_X1_FAW59661_bf8308e2/pod5"
+OUTFOLDER="/Data1/seq_data/AF_060_ama1-3xGFPnb_GFP-Hia5_dimelo_12_1/no_sample/20231201_2151_X1_FAW59661_bf8308e2/basecalls/"
 OUTFILE="${OUTFOLDER}mod_mappings.bam"
 SORTED_OUTFILE="${OUTFOLDER}mod_mappings.sorted.bam"
 REF="/Data1/reference/ws235.mmi" # this is c. elegans reference file, change to appropriate reference
@@ -48,7 +48,7 @@ echo "Reference: $REF"
 # For each folder starting with barcode in INDIR
 
 # <<5khz-data
-dorado basecaller \
+./dorado basecaller \
 /Data1/software/rerio/dorado_models/dna_r10.4.1_e8.2_400bps_sup@v4.2.0 \
 $INDIR \
 --reference $REF \
