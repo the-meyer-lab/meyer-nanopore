@@ -527,7 +527,7 @@ def filter_nucs_by_features(data_df, bed_tss, region_cutoff):
 
 
 ### Calculate bam summary statistics
-def get_summary_from_bam(sampling_frac: float, a_threshold: float, modkit_path: str,bam_path: str,each_condition: str,each_exp_id: str, chromosome: Optional[str] = None, start: Optional[int] = None, end: Optional[int] = None) -> pd.DataFrame:
+def get_summary_from_bam(sampling_frac: float, a_threshold: float, modkit_path: str,bam_path: str,each_condition: str,each_exp_id: str, thread_ct: Optional[int] = 4, chromosome: Optional[str] = None, start: Optional[int] = None, end: Optional[int] = None) -> pd.DataFrame:
     """
     Fetches data from the given bam file using modkit and returns it as a pandas DataFrame.
 
@@ -549,10 +549,10 @@ def get_summary_from_bam(sampling_frac: float, a_threshold: float, modkit_path: 
     command = [
         modkit_path,
         "summary",
-        "--ignore",
-        "m",
+        #"--ignore",
+        #"m",
         "--threads",
-        "6",
+        f"{thread_ct}",
         "--sampling-frac",
         f"{sampling_frac}",
         "--seed",
@@ -560,10 +560,12 @@ def get_summary_from_bam(sampling_frac: float, a_threshold: float, modkit_path: 
         #"--mod-thresholds",
         #f"a:{a_threshold}",
         #"--no-filtering",
-        "--filter-threshold",
-        f"A:{1-a_threshold}",
+        #"--filter-threshold",
+        #f"A:{1-a_threshold}",
         "--mod-thresholds",
         f"a:{a_threshold}",
+        "--mod-thresholds",
+        f"m:{a_threshold}",
         "--log-filepath",
         f"temp_files/modkit_summary_{each_condition}_{each_exp_id}.log"
     ]

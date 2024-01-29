@@ -13,8 +13,8 @@
 # dorado download --model all
 
 # Define variables:
-INDIR="/Data1/seq_data/AF_060_ama1-3xGFPnb_GFP-Hia5_dimelo_12_1/no_sample/20231201_2151_X1_FAW59661_bf8308e2/pod5"
-OUTFOLDER="/Data1/seq_data/AF_060_ama1-3xGFPnb_GFP-Hia5_dimelo_12_1/no_sample/20231201_2151_X1_FAW59661_bf8308e2/basecalls/"
+INDIR="/Data1/seq_data/AM_N2_mixed_embryo_background_01_24_24/no_sample/20240124_1533_X2_FAX30165_d95a7a04/pod5"
+OUTFOLDER="/Data1/seq_data/AM_N2_mixed_embryo_background_01_24_24/no_sample/20240124_1533_X2_FAX30165_d95a7a04/basecalls/"
 OUTFILE="${OUTFOLDER}mod_mappings.bam"
 SORTED_OUTFILE="${OUTFOLDER}mod_mappings.sorted.bam"
 REF="/Data1/reference/ws235.mmi" # this is c. elegans reference file, change to appropriate reference
@@ -48,15 +48,19 @@ echo "Reference: $REF"
 # For each folder starting with barcode in INDIR
 
 # <<5khz-data
+cd /Data1/software/dorado/bin
 ./dorado basecaller \
 /Data1/software/rerio/dorado_models/dna_r10.4.1_e8.2_400bps_sup@v4.2.0 \
 $INDIR \
 --reference $REF \
 --modified-bases-threshold 0 \
+--device cuda:4,5,6,7 \
 --modified-bases 5mC 6mA \
 > $OUTFILE
 # 5khz-data
-  
+
+# --modified-bases 5mC 6mA \
+# --modified-bases 6mA \
 
 # Note: The above basecalles 5mC and m6A base modofications. Either can be removed if desired.
 # Recommend using modified base threshold of 0, and setting base modification thresholds in downstream analysis pipeline
@@ -83,3 +87,8 @@ samtools view -h $SORTED_OUTFILE | \
 # Index .bam file
 samtools index $CORRECTED_OUTFILE
 optional
+
+### Merging .bam files:
+#samtools merge -@ 128 /Data1/seq_data/AM_N2_mixed_embryo_background_01_24_24/mod_mappings_AM.sorted.bam \
+#     /Data1/seq_data/AM_N2_mixed_embryo_background_01_24_24/no_sample/20240124_1533_X2_FAX30165_d95a7a04/basecalls/mod_mappings.sorted.bam \
+#     /Data1/seq_data/AM_N2_mixed_embryo_background_01_24_24/no_sample/20240124_1533_X1_FAX32044_b0963e3a/basecalls/mod_mappings.sorted.bam
