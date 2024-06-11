@@ -2,3 +2,7 @@
 /reference/
 *.idea
 
+/scripts/analysis/temp_files/
+/scripts/analysis/jupyter_output/
+/scripts/analysis/iframe_figures/
+/scripts/analysis/temp_files/
