@@ -1,8 +1,24 @@
-/software/
-/reference/
-*.idea
+# Ignore everything by default
+**
 
-/scripts/analysis/temp_files/
-/scripts/analysis/jupyter_output/
-/scripts/analysis/iframe_figures/
-/scripts/analysis/temp_files/
+# Keep this file
+!.gitignore
+
+# Allow repo-root files only (not directories)
+!/*
+/*/
+
+# scripts: include files directly under scripts, exclude its subdirectories
+!/scripts/
+!/scripts/*
+/scripts/*/
+
+# scripts/analysis: include files, exclude subdirectories
+!/scripts/analysis/
+!/scripts/analysis/*
+/scripts/analysis/*/
+
+# scripts/basecalling: include files, exclude subdirectories
+!/scripts/basecalling/
+!/scripts/basecalling/*
+/scripts/basecalling/*/

@@ -31,9 +31,250 @@ from scipy import stats
 from scipy.signal import find_peaks
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+#import pyranges as pr
 
 # Set seaborn style for all plots
 sns.set(style="whitegrid")
+
+def _autocorr_vec(x: np.ndarray, max_lag: int) -> np.ndarray:
+    """
+    True Pearson-style autocorrelation up to max_lag:
+     - pairwise-complete (ignores NaNs)
+     - per-lag separate means & variances
+    """
+    n = len(x)
+    ac = np.full(max_lag+1, np.nan)
+    if n < 2:
+        return ac
+
+    for k in range(0, min(max_lag, n-1) + 1):
+        x1 = x[:n-k]
+        x2 = x[k:]
+        valid = ~np.isnan(x1) & ~np.isnan(x2)
+        if valid.sum() < 2:
+            continue
+
+        x1v = x1[valid]
+        x2v = x2[valid]
+        m1 = x1v.mean()
+        m2 = x2v.mean()
+
+        num = np.sum((x1v - m1) * (x2v - m2))
+        v1  = np.sum((x1v - m1)**2)
+        v2  = np.sum((x2v - m2)**2)
+        denom = np.sqrt(v1 * v2)
+
+        ac[k] = num/denom if denom > 0 else np.nan
+
+    return ac
+
+def get_color(key):
+    """
+    Return a hex colour for *key*.
+
+    Priority:
+      1) Condition keywords (dpy27/sdc2/n2*/sdc3/dpy21)  → fixed colors
+      2) Types: MEX_motif / MEXII_motif / univ_nuc       → fixed colors
+      3) Degron keys and other fallbacks                 → existing logic
+    """
+    from plotly.colors import qualitative, sequential
+    import re
+
+    # ── helpers ───────────────────────────────────────────────────────────────
+    def _rgb_to_hex(s):
+        m = re.fullmatch(r"rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)", s)
+        if m:
+            r, g, b = map(int, m.groups())
+            return f"#{r:02X}{g:02X}{b:02X}"
+        return s
+
+    def lighten_color(hexstr, amount=0.7):
+        hexstr = hexstr.lstrip('#')
+        r, g, b = [int(hexstr[i:i+2], 16) for i in (0, 2, 4)]
+        r = int(r + (255 - r) * amount)
+        g = int(g + (255 - g) * amount)
+        b = int(b + (255 - b) * amount)
+        return f"#{r:02X}{g:02X}{b:02X}"
+
+    PALETTE = qualitative.Plotly
+    k_lower = str(key).lower()
+
+    # ── 1) condition overrides (unchanged) ────────────────────────────────────
+    if "dpy27" in k_lower:   return "#47B562"
+    if "sdc2"  in k_lower:   return "#b12537"
+    if "n2_old" in k_lower:  return "#4974a5"
+    if "n2_mid" in k_lower:  return "#61baad"
+    if "n2_young" in k_lower:return "#dea01e"
+    if "sdc3"  in k_lower:   return "#9d55ac"
+    if "dpy21" in k_lower:   return "#808080"
+
+    # ── 2) type colours ───────────────────────────────────────────────────────
+    TYPE_COLOR_MAP = {
+        "mex_motif":   "#1f77b4",  # blue
+        "mexii_motif": "#ff7f0e",  # orange
+        "univ_nuc":    "#2ca02c",  # green
+    }
+    for token, hexcol in TYPE_COLOR_MAP.items():
+        if token in k_lower:
+            return hexcol
+
+    # ── 3) degron time-course palette (as before) ─────────────────────────────
+    degron_keys = [
+        "T0_rep2", "T0_rep3", "T0p5_rep3", "T1_rep3",
+        "T1p5_rep3", "T2_rep2", "T3_rep2", "T4_rep3",
+    ]
+    ylorrd_hex = [_rgb_to_hex(c) for c in sequential.YlOrRd[::-1][:8]]
+    DEGRON_MAP = dict(zip(degron_keys, ylorrd_hex))
+
+    base = None
+    if k_lower.startswith("sdc2_degron_mid_t"):
+        parts = str(key).split("_")
+        if len(parts) >= 5:
+            short_key = f"{parts[3]}_{parts[4]}"
+            base = DEGRON_MAP.get(short_key)
+
+    # ── keyword-based palette for all others (unchanged) ──────────────────────
+    if base is None:
+        if "mexiiscramble" in k_lower:
+            base = PALETTE[8]       # pink
+        elif "4thctog" in k_lower:
+            base = "#7F7F7F"        # grey
+        else:
+            base = PALETTE[6]       # default fallback
+
+    if "intergenic" in k_lower:
+        base = lighten_color(_rgb_to_hex(base), amount=0.25)
+
+    return base
+
+
+def get_colors(keys):
+    """
+    Accept a single key or an iterable of keys and return
+    a single color or list of colors.
+    """
+    if hasattr(keys, "__iter__") and not isinstance(keys, str):
+        return [get_color(k) for k in keys]
+    else:
+        return get_color(keys)
+
+
+
+
+# Function to impute and smooth scores for a bedgraph dataframe:
+def process_chromosome(chr_data):
+    chrom, scores, weights, impute_window, smooth_window, fill_value = chr_data
+    #print("Imputing chromosome:", chrom)
+
+    # Imputation
+    if impute_window > 0:
+        # Calculate weighted means using convolution
+        weights_conv = np.convolve(weights.values, np.ones(impute_window), mode='same')
+        weighted_mean = np.convolve(scores.values * weights.values, np.ones(impute_window), mode='same') / weights_conv
+        imputed_scores = scores.combine_first(pd.Series(weighted_mean, index=scores.index)).fillna(fill_value)
+        imputed_weights = weights.combine_first(
+            weights.rolling(window=impute_window, center=True, min_periods=1).mean()).fillna(fill_value)
+    else:
+        imputed_scores = scores.fillna(fill_value)
+        imputed_weights = weights.fillna(fill_value)
+
+    #print("Smoothing chromosome:", chrom)
+    # Smoothing
+    if smooth_window > 0:
+        # Calculate weighted sums and counts using convolution
+        weights_conv_smooth = np.convolve(imputed_weights.values, np.ones(smooth_window), mode='same')
+        weighted_sum = np.convolve(imputed_scores.values * imputed_weights.values, np.ones(smooth_window), mode='same')
+        weighted_count = np.convolve(imputed_weights.values, np.ones(smooth_window), mode='same')
+
+        # Avoid division by zero
+        weighted_count[weighted_count == 0] = np.nan
+
+        # Compute smoothed scores
+        smoothed_scores = pd.Series(weighted_sum / weighted_count, index=scores.index)
+        smoothed_scores = smoothed_scores.combine_first(
+            imputed_scores.rolling(window=smooth_window, center=True, min_periods=1).mean()).fillna(fill_value)
+
+        # Smoothed weights (just mean of weights over window)
+        smoothed_weights = pd.Series(weights_conv_smooth / smooth_window, index=weights.index)
+    else:
+        smoothed_scores = imputed_scores
+        smoothed_weights = imputed_weights
+
+    return chrom, imputed_scores, imputed_weights, smoothed_scores, smoothed_weights
+
+def parallel_impute_and_smooth(data, impute_window, smooth_window, fill_value=0):
+    #print("DataFrame columns:", data.columns)
+    
+    # Prepare data for parallel processing
+    chr_data = [
+        (chrom, group['score'], group['coverage'], impute_window, smooth_window, fill_value)
+        for chrom, group in data.groupby('chromosome')
+    ]
+    print("Starting parallel processing of chromosomes...")
+    # Use multiprocessing.Pool for parallel processing
+    results = [process_chromosome(ch_data) for ch_data in chr_data]
+
+    # Combine results
+    imputed_scores = pd.concat([result[1] for result in results])
+    imputed_weights = pd.concat([result[2] for result in results])
+    smoothed_scores = pd.concat([result[3] for result in results])
+    smoothed_weights = pd.concat([result[4] for result in results])
+    # print head of imputed_scores and smoothed_scores
+    #print("Smoothed scores head:", smoothed_scores.head())
+    # print head of imputed_weights and smoothed_weights
+    #print("Smoothed weights head:", smoothed_weights.head())
+    return imputed_scores, imputed_weights, smoothed_scores, smoothed_weights
+
+def get_chromosome_sizes(genome_fasta_path):
+    # Ensure the .fai index file exists
+    if not os.path.exists(genome_fasta_path + '.fai'):
+        subprocess.run(['samtools', 'faidx', genome_fasta_path], check=True)
+
+    # Read the .fai file to get chromosome sizes
+    chromosome_sizes = {}
+    with open(genome_fasta_path + '.fai', 'r') as fai_file:
+        for line in fai_file:
+            parts = line.strip().split('\t')
+            chromosome_sizes[parts[0]] = int(parts[1])
+
+    return chromosome_sizes
+
+
+# Assuming get_chromosome_sizes is defined elsewhere
+# from your_module import get_chromosome_sizes
+
+# Function to load and process bedgraph data into a dataframe
+def load_bedgraph_file(file_path, chr=None, start=None, end=None, nan_fill=True):
+    # Load data
+    df = pd.read_csv(file_path, sep='\t', header=None, names=['chromosome', 'start', 'end', 'score', 'coverage'])
+
+    # fill "coverage" column with 1s if it is empty or not present or filled with nan
+    if 'coverage' not in df.columns or df['coverage'].isnull().all():
+        df['coverage'] = 1
+
+    # Get chromosome sizes using samtools (you may need to adjust this part)
+    chromosome_sizes = get_chromosome_sizes("/Data1/reference/c_elegans.WS235.genomic.fa")
+
+    if chr is not None and start is not None and end is not None:
+        # Filter rows based on chr, start, end
+        df = df[(df['chromosome'] == chr) & (df['start'] > start) & (df['start'] < end)]
+
+    if nan_fill:
+        # Create a DataFrame with all possible positions for the entire genome
+        all_positions = pd.DataFrame({
+            'chromosome': np.concatenate([[chr] * length for chr, length in chromosome_sizes.items()]),
+            'start': np.concatenate([np.arange(0, length ) for length in chromosome_sizes.values()]),
+            'end': np.concatenate([np.arange(1, length + 1) for length in chromosome_sizes.values()])
+        })
+
+        # Merge with original DataFrame
+        df = pd.merge(all_positions, df, on=['chromosome', 'start', 'end'], how='left')
+
+        # Fill NA values
+        df['score'].fillna(np.nan, inplace=True)
+        df['coverage'].fillna(np.nan, inplace=True)
+
+    return df
 
 # Function to process each type and bam file
 # Function to preprocess each type
@@ -109,158 +350,273 @@ def plot_enrichment_results(results_df, numerator, denominator):
 
 def create_lookup_bed(new_bed_files):
     """
-    Converts standard bed files into a bed file formatted for modkit input.
+    Converts standard bed files into a BED formatted for downstream
+    look‑ups.
 
-    Parameters:
-    - new_bed_files: List of paths to new bed files.
+    Parameters
+    ----------
+    new_bed_files : list[str]
+        Paths to <*.bed.gz> files produced by `filter_bed_file`.
 
-    Returns:
-    - combined_bed_df: DataFrame containing combined bed data.
+    Returns
+    -------
+    pandas.DataFrame
+        Combined BED (cols: chrom, bed_start, bed_end, bed_strand,
+        type, chr_type).
     """
+    import os
+    import pandas as pd
+
     combined_bed_df = pd.DataFrame()
+
+    # ==================================================================
+    #  Read each BED (un‑gzipped), skipping the deliberately empty ones
+    # ==================================================================
     for each_bed in new_bed_files:
-        bed_path = each_bed[:-3]  # Remove .gz extension
-        bed_df = pd.read_csv(bed_path, sep="\t", header=None)
+        bed_path = each_bed[:-3]       # strip ".gz"
+
+        # ─── PATCH START – skip empty BEDs ───────────────────────────
+        try:
+            if os.path.getsize(bed_path) == 0:
+                print(f"skipping empty file … {bed_path}")
+                continue
+            bed_df = pd.read_csv(bed_path, sep="\t", header=None)
+        except pd.errors.EmptyDataError:
+            print(f"skipping empty file … {bed_path}")
+            continue
+        # ─── PATCH END ───────────────────────────────────────────────
+
         combined_bed_df = combined_bed_df.append(bed_df)
 
-    combined_bed_df.columns = ['chrom', 'bed_start', 'bed_end', 'bed_strand', 'type', 'chr_type']
-    combined_bed_df.sort_values(by=['chrom', 'bed_start'], ascending=True, inplace=True)
+    # Ensure we actually read something
+    if combined_bed_df.empty:
+        raise RuntimeError("No non‑empty BED files found – "
+                           "combined lookup BED would be empty.")
+
+    combined_bed_df.columns = [
+        "chrom", "bed_start", "bed_end",
+        "bed_strand", "type", "chr_type"
+    ]
+    combined_bed_df.sort_values(
+        by=["chrom", "bed_start"],
+        ascending=True,
+        inplace=True
+    )
     combined_bed_df.dropna(inplace=True)
     combined_bed_df.drop_duplicates(inplace=True)
     combined_bed_df.reset_index(drop=True, inplace=True)
 
     return combined_bed_df
 
-def filter_bed_file(bed_file, sample_source, selection, chromosome_selected, chr_type_selected, type_selected,
-                    strand_selected, max_regions, bed_window, intergenic_window):
+
+
+def filter_bed_file(bed_file, sample_source, selection,
+                    chromosome_selected, chr_type_selected, type_selected,
+                    strand_selected, max_regions, bed_window,
+                    intergenic_window):
     """
-    Filters a bed file based on various criteria and saves 1 bed file per sample source type.
+    Filters a bed file based on various criteria and saves 1 bed file per
+    sample source type.  Applies max_regions limit per type within each
+    selection.
 
-    Parameters:
-    - bed_file: Path to the complete bed file.
-    - sample_source: Type of sample source to filter by ("type", "chr_type", "chromosome").
-    - selection: List of types to select.
-    - chromosome_selected: List of chromosomes to select.
-    - chr_type_selected: List of chromosome types to select.
-    - type_selected: List of types to select.
-    - strand_selected: List of strands to select.
-    - max_regions: Maximum number of regions to select per type.
-    - bed_window: Number of basepairs to add to each side of the bed file.
-    - intergenic_window: Window size for intergenic regions.
+    Parameters
+    ----------
+    bed_file : str
+        Path to the complete bed file.
+    sample_source : {"type", "chr_type", "chromosome"}
+        Column to iterate over.
+    selection : list[str]
+        Values drawn from *sample_source* to keep (processed one‑by‑one).
+    chromosome_selected, chr_type_selected, type_selected : list[str]
+        Additional filtering criteria.
+    strand_selected : list[str]
+        Strands to retain.
+    max_regions : int
+        Maximum regions per *type* (0 ⇒ no limit).
+    bed_window, intergenic_window : int
+        Windows added to bed coordinates.
 
-    Returns:
-    - List of paths to saved bed files.
+    Returns
+    -------
+    list[str]
+        Paths to the bgzipped bed files generated.
     """
     print("Filtering bed file...")
-    print("Configs:",sample_source, selection, chromosome_selected, chr_type_selected, type_selected, strand_selected, max_regions, bed_window, intergenic_window)
-    
-    ### Select bed file
-    full_bed = pd.read_csv(bed_file,sep='\t')
-    bed=[]
+    print("Configs:", sample_source, selection, chromosome_selected,
+          chr_type_selected, type_selected, strand_selected,
+          max_regions, bed_window, intergenic_window)
 
-    # Select rows where type == "whole_chr" and store end value to chromosome_ends
+    # ------------------------------------------------------------------
+    #  Load the full BED; extract chromosome endpoints
+    # ------------------------------------------------------------------
+    full_bed = pd.read_csv(bed_file, sep="\t")
     chromosome_ends = full_bed[full_bed["type"] == "whole_chr"]
-    print("Chromosome ends:",chromosome_ends)
+    print("Chromosome ends:", chromosome_ends)
 
+    bed = []          # collect <*.bed.gz> paths here
+
+    # ==================================================================
+    #  Iterate through “X”, “Autosome”, etc.
+    # ==================================================================
     for each_type in selection:
-    # REGION CONFIGURATION
+        # ───── REGION CONFIGURATION ──────────────────────────────────
         if sample_source == "type":
-            temp_bed = full_bed[full_bed["chromosome"].isin(chromosome_selected) &
-                                full_bed["chr-type"].isin(chr_type_selected) &
-                                #full_bed["type"] is the same as each_type
-                                full_bed["type"].__eq__(each_type) &
-                                full_bed["strand"].isin(strand_selected)]
-        if sample_source == "chr_type":
-            temp_bed = full_bed[full_bed["chromosome"].isin(chromosome_selected) &
-                                full_bed["chr-type"].str.contains(each_type) &
-                                full_bed["type"].isin(type_selected) &
-                                full_bed["strand"].isin(strand_selected)]
-        if sample_source == "chromosome":
-            temp_bed = full_bed[full_bed["chromosome"].__eq__(each_type) &
-                                full_bed["chr-type"].isin(chr_type_selected) &
-                                full_bed["type"].isin(type_selected) &
-                                full_bed["strand"].isin(strand_selected)]
-        
-        # Drop random regions to match max_regions
-        drop_count = len(temp_bed)-max_regions
-        # If max regions > selected regions, do not drop any.
-        if(drop_count<0):
-            drop_count=0
-        # If max_regions = 0, do not drop any.
-        if (max_regions == 0):
-            drop_count = 0
-        # Drop random regions to match max_regions
-        temp_bed = temp_bed.copy()
-        drop_indices = np.random.choice(temp_bed.index, drop_count, replace=False)
-        temp_bed.drop(drop_indices,inplace=True)
+            temp_bed = full_bed[
+                full_bed["chromosome"].isin(chromosome_selected) &
+                full_bed["chr-type"].isin(chr_type_selected) &
+                full_bed["type"].eq(each_type) &
+                full_bed["strand"].isin(strand_selected)
+            ]
+        elif sample_source == "chr_type":
+            temp_bed = full_bed[
+                full_bed["chromosome"].isin(chromosome_selected) &
+                full_bed["chr-type"].str.contains(each_type) &
+                full_bed["type"].isin(type_selected) &
+                full_bed["strand"].isin(strand_selected)
+            ]
+        elif sample_source == "chromosome":
+            temp_bed = full_bed[
+                full_bed["chromosome"].eq(each_type) &
+                full_bed["chr-type"].isin(chr_type_selected) &
+                full_bed["type"].isin(type_selected) &
+                full_bed["strand"].isin(strand_selected)
+            ]
 
-        # Sort by chromosome and start
-        temp_bed.sort_values(by=["chromosome","start"],ascending=True,inplace=True)
+        temp_bed = temp_bed.copy()   # avoid SettingWithCopyWarning
+
+        # ─── PATCH 1 START – handle *totally empty* temp_bed ─────────
+        if temp_bed.empty:
+            print(f"No regions found for “{each_type}”.  Creating empty BED.")
+            bed_file_path   = os.path.dirname(bed_file)
+            temp_bedfile    = f"{bed_file_path}/{each_type}.bed"
+            temp_bedfile_gz = f"{bed_file_path}/{each_type}.bed.gz"
+            temp_bedfile_tbi = f"{bed_file_path}/{each_type}.bed.gz.tbi"
+
+            pd.DataFrame(columns=full_bed.columns).to_csv(
+                temp_bedfile, sep="\t", header=False, index=False
+            )
+
+            with open(temp_bedfile_gz, "wb") as out_fh:
+                res = subprocess.run(
+                    ["bgzip", "-c", temp_bedfile],
+                    stdout=out_fh, stderr=subprocess.PIPE
+                )
+            if res.returncode != 0:
+                print("bgzip error:", res.stderr.decode())
+            else:
+                print(f"{temp_bedfile} → {temp_bedfile_gz}")
+
+            with open(temp_bedfile_tbi, "wb") as out_fh:
+                res2 = subprocess.run(
+                    ["tabix", "-f", "-p", "bed", temp_bedfile_gz],
+                    stdout=out_fh, stderr=subprocess.PIPE
+                )
+            if res2.returncode != 0:
+                print("tabix warning:", res2.stderr.decode())
+            else:
+                print(f"Index created: {temp_bedfile_tbi}")
+
+            bed.append(temp_bedfile_gz)
+            continue          # move to next each_type
+        # ─── PATCH 1 END ─────────────────────────────────────────────
+
+        # ───────────────────── apply max_regions ─────────────────────
+        if max_regions > 0:
+            type_groups = []
+            for type_name in temp_bed["type"].unique():
+                subset = temp_bed[temp_bed["type"] == type_name]
+                excess = len(subset) - max_regions
+                if excess > 0:
+                    keep_idx = np.random.choice(
+                        subset.index, size=max_regions, replace=False
+                    )
+                    subset = subset.loc[keep_idx]
+                type_groups.append(subset)
+
+            # ─── PATCH 2 START – guard against empty *type_groups* ───
+            if not type_groups:          # nothing survived filtering
+                print(f"All regions dropped for “{each_type}” "
+                      f"after applying max_regions={max_regions}. "
+                      "Creating empty BED.")
+                bed_file_path   = os.path.dirname(bed_file)
+                temp_bedfile    = f"{bed_file_path}/{each_type}.bed"
+                temp_bedfile_gz = f"{bed_file_path}/{each_type}.bed.gz"
+                temp_bedfile_tbi = f"{bed_file_path}/{each_type}.bed.gz.tbi"
+
+                pd.DataFrame(columns=full_bed.columns).to_csv(
+                    temp_bedfile, sep="\t", header=False, index=False
+                )
+
+                with open(temp_bedfile_gz, "wb") as out_fh:
+                    subprocess.run(
+                        ["bgzip", "-c", temp_bedfile],
+                        stdout=out_fh, stderr=subprocess.PIPE, check=False
+                    )
+                with open(temp_bedfile_tbi, "wb") as out_fh:
+                    subprocess.run(
+                        ["tabix", "-f", "-p", "bed", temp_bedfile_gz],
+                        stdout=out_fh, stderr=subprocess.PIPE, check=False
+                    )
+                bed.append(temp_bedfile_gz)
+                continue
+            # ─── PATCH 2 END ─────────────────────────────────────────
+
+            temp_bed = pd.concat(type_groups, ignore_index=True)
+
+        # ─────────────────── adjust windows, clip ends ───────────────
+        temp_bed.sort_values(by=["chromosome", "start"],
+                             inplace=True, ascending=True)
         temp_bed.reset_index(drop=True, inplace=True)
 
-        # Adjust start for rows where type != "intergenic_control" by bed_window, otherwise ajust by intergenic_window
-        temp_bed["start"] = np.where(temp_bed["type"] != "intergenic_control", temp_bed["start"] - bed_window, temp_bed["start"] - intergenic_window)
-        # Adjust end for rows where type != "intergenic_control" by bed_window, otherwise ajust by intergenic_window
-        temp_bed["end"] = np.where(temp_bed["type"] != "intergenic_control", temp_bed["end"] + bed_window, temp_bed["end"] + intergenic_window)
-
-        # Set start for all rows where start < 0 to 0
-        temp_bed["start"] = np.where(temp_bed["start"] < 0, 0, temp_bed["start"])
-        # For each chromosome, set end for all rows where end > chromosome_ends to chromosome_ends
-        for each_chromosome in chromosome_ends["chromosome"].unique():
-            chromosome_end = chromosome_ends[chromosome_ends["chromosome"].__eq__(each_chromosome)]["end"].values[0]
-            temp_bed["end"] = np.where((temp_bed["end"] > chromosome_end) & (temp_bed["chromosome"] == each_chromosome), chromosome_end, temp_bed["end"])
-
-
-        # If select_opp_strand is True, copy dataframe, reverse strand column and append to original df
-        #if select_opp_strand == True:
-        #    # set temp_bed_opp_min to copy of temp_bed, but only where strand == "-"
-        #    temp_bed_opp_min = temp_bed[temp_bed["strand"].str.contains("-")]
-        #    temp_bed_opp_min["strand"] = temp_bed_opp_min["strand"].replace({"-":"+"})
-
-            # copy only strand "+" from temp_bed_opp and reverse strand
-        #    temp_bed_opp_plus = temp_bed[temp_bed["strand"].str.contains("\+")]
-        #    temp_bed_opp_plus["strand"] = temp_bed_opp_plus["strand"].replace({"+":"-"})
-        #    temp_bed = pd.concat([temp_bed,temp_bed_opp_min,temp_bed_opp_plus],ignore_index=True)
-
-        #    temp_bed.sort_values(by=["chromosome","start"],ascending=True,inplace=True)
-        #    temp_bed.reset_index(drop=True, inplace=True)
-
-        #display_sample_rows(temp_bed, 5)
-        # select only path from bed_file
-        bed_file_path = os.path.dirname(bed_file)
-
-        # Save bed file
-        temp_bedfile = bed_file_path+"/"+each_type+".bed"
-        temp_bedfile_gz = bed_file_path + "/"+each_type+".bed.gz"
-        temp_bedfile_tbi = bed_file_path + "/" + each_type + ".bed.gz.tbi"
-        temp_bed.to_csv(temp_bedfile, sep="\t",header=False,index=False)
-
-        # Compress bed file
-        with open(temp_bedfile_gz, 'wb') as output_file:
-            result = subprocess.run(["bgzip", "-c", temp_bedfile],stdout=output_file, stderr=subprocess.PIPE)
-        if result.returncode != 0:
-            print(f"Error executing command: {result.stderr.decode('utf-8')}")
+        if "intergenic_control" in temp_bed["type"].unique():
+            temp_bed["start"] = np.where(
+                temp_bed["type"] != "intergenic_control",
+                temp_bed["start"] - bed_window,
+                temp_bed["start"] - intergenic_window
+            )
+            temp_bed["end"] = np.where(
+                temp_bed["type"] != "intergenic_control",
+                temp_bed["end"] + bed_window,
+                temp_bed["end"] + intergenic_window
+            )
         else:
-            print(f"{temp_bedfile} has been compressed successfully to {temp_bedfile_gz}")
+            temp_bed["start"] -= bed_window
+            temp_bed["end"]   += bed_window
 
-        # Index bed file
-        with open(temp_bedfile_tbi, 'wb') as output_file:
-            result2 = subprocess.run(["tabix", "-f", "-p", "bed", temp_bedfile_gz],stdout=output_file,stderr=subprocess.PIPE)
-        if result2.returncode != 0:
-            print(f"Error executing command: {result2.stderr.decode('utf-8')}")
-        else:
-            print(f"Index created successfully for {temp_bedfile_tbi}")
+        temp_bed["start"] = temp_bed["start"].clip(lower=0)
 
-        # For first iteration
-        if bed == []:
-            bed = [temp_bedfile_gz]
+        for chrom in chromosome_ends["chromosome"].unique():
+            chrom_end = chromosome_ends.loc[
+                chromosome_ends["chromosome"].eq(chrom), "end"
+            ].values[0]
+            mask = temp_bed["chromosome"].eq(chrom)
+            temp_bed.loc[mask, "end"] = temp_bed.loc[mask, "end"].clip(
+                upper=chrom_end
+            )
 
-        # Otherwise append region to temporary bed file.
-        else:
-            bed.append(temp_bedfile_gz)
-    print("Saved the following bedfiles:",bed)
+        # ───────────────────── write / bgzip / tabix ─────────────────
+        bed_file_path   = os.path.dirname(bed_file)
+        temp_bedfile    = f"{bed_file_path}/{each_type}.bed"
+        temp_bedfile_gz = f"{bed_file_path}/{each_type}.bed.gz"
+        temp_bedfile_tbi = f"{bed_file_path}/{each_type}.bed.gz.tbi"
+
+        temp_bed.to_csv(temp_bedfile, sep="\t", header=False, index=False)
+
+        with open(temp_bedfile_gz, "wb") as out_fh:
+            subprocess.run(
+                ["bgzip", "-c", temp_bedfile],
+                stdout=out_fh, stderr=subprocess.PIPE, check=False
+            )
+        with open(temp_bedfile_tbi, "wb") as out_fh:
+            subprocess.run(
+                ["tabix", "-f", "-p", "bed", temp_bedfile_gz],
+                stdout=out_fh, stderr=subprocess.PIPE, check=False
+            )
+
+        bed.append(temp_bedfile_gz)
+
+    print("Saved the following bedfiles:", bed)
     return bed
-
 
 ### Extract only reads in bam file that overlap selected regions, and subselect down using fraction
 ### NOT NECESSARY IF RUNNING WHOLE CHROMOSOMES
@@ -743,7 +1099,7 @@ def filter_nucs_by_features(data_df, bed_tss, region_cutoff):
     return result_df
 
 ### Calculate bam summary statistics
-def get_summary_from_bam(sampling_frac, a_threshold, modkit_path, bam_path, each_condition, each_exp_id, thread_ct=4, chromosome=None, start=None, end=None, bed_file=None):
+def get_summary_from_bam(sampling_frac, a_threshold, modkit_path, bam_path, each_condition, each_exp_id,c_threshold = None, thread_ct=4, chromosome=None, start=None, end=None, bed_file=None):
     """
     Fetches summary statistics from a BAM file using modkit.
 
@@ -766,31 +1122,40 @@ def get_summary_from_bam(sampling_frac, a_threshold, modkit_path, bam_path, each
 
     #print("Starting on ", each_condition, " with exp_id: ", each_exp_id)
 
+    # if c_thresh is not provided, set it to a_threshold
+    if c_threshold is None:
+        c_threshold = a_threshold
+
     command = [
         modkit_path,
         "summary",
         #"--ignore",
         #"m",
+        "--tsv",
         "--threads",
         f"{thread_ct}",
-        "--sampling-frac",
-        f"{sampling_frac}",
+        # "--sampling-frac",
+        # f"{sampling_frac}",
         "--seed",
         "10",
-        #"--mod-thresholds",
-        #f"a:{a_threshold}",
         #"--no-filtering",
         "--filter-threshold",
-        f"A:{1-a_threshold}",
+        f"A:{0.7}",
         "--filter-threshold",
-        f"C:{1 - a_threshold}",
+        f"C:{0.7}",
         "--mod-thresholds",
         f"a:{a_threshold}",
         "--mod-thresholds",
-        f"m:{a_threshold}",
+        f"m:{c_threshold}",
         "--log-filepath",
         f"temp_files/modkit_summary_{each_condition}_{each_exp_id}.log"
     ]
+
+    # sampling
+    if sampling_frac is None or sampling_frac >= 1:
+        command.append("--no-sampling")
+    else:
+        command += ["--sampling-frac", str(sampling_frac)]  # <-- correct flag
 
     # if bed_file is not None, add the bed file argument to the end of the command
     if bed_file is not None:
@@ -805,7 +1170,7 @@ def get_summary_from_bam(sampling_frac, a_threshold, modkit_path, bam_path, each
     command.extend([bam_path])
 
     # Run the command and capture the stdout
-    #print("Running command:", " ".join(command))
+    print("Running command:", " ".join(command))
     result = subprocess.run(command,  text=True, capture_output=True)
     if chromosome is None:
         print('stdout:')
@@ -813,25 +1178,19 @@ def get_summary_from_bam(sampling_frac, a_threshold, modkit_path, bam_path, each
 
     # Extract only the table data starting from the column names
     # Split the stdout using the substring
-    split_data = result.stdout.split(" base  ")
+    # ------------- replace everything from "split_data = ..." down with:
+    from io import StringIO
+    df = pd.read_csv(StringIO(result.stdout), sep="\t")
 
-    # Check if we have at least two items after the split
-    if len(split_data) > 1:
-        table_data = "base " + split_data[1]  # Adding back the column name
-    else:
-        # Here you can decide on what to do when the substring doesn't exist
-        # For this example, I'll return an empty DataFrame
-        print("Warning: Expected substring 'base' not found in the output.")
+    if df.empty:
+        print("Warning: modkit returned no rows; stdout was:")
+        print(result.stdout[:300])  # first 300 chars for debug
         return pd.DataFrame(columns=['condition', 'exp_id'])
 
-    # Convert the extracted data to a DataFrame
-    df = pd.read_csv(StringIO(table_data), sep="\s+", engine='python')
-
-    # Add condition column
     df["condition"] = each_condition
     df["exp_id"] = each_exp_id
-
     return df
+
 
 def display_sample_rows(df, n=5):
     """
@@ -856,71 +1215,96 @@ def display_sample_rows(df, n=5):
         sampled_df = pd.concat([df.head(n), df.sample(n=n, random_state=1), df.tail(n)], ignore_index=True)
     display(sampled_df)
 
-def generate_modkit_bed(new_bed_files, down_sample_autosome, select_opp_strand, output_name):
+def generate_modkit_bed(new_bed_files,
+                        down_sample_autosome: bool,
+                        select_opp_strand: bool,
+                        output_name: str):
     """
-    Generates a bed file formatted for modkit input from a list of bed files,
-    with options for downsampling and strand selection.
+    Build the “include‑bed” for `modkit` by concatenating the filtered
+    BEDs produced by *filter_bed_file*.
 
-    Parameters:
-    - new_bed_files: List of bed file paths to combine.
-    - down_sample_autosome: Boolean indicating whether to downsample autosomal regions.
-    - select_opp_strand: Boolean indicating whether to select opposite strands for regions.
-    - output_name: Path for the output bed file.
+    Parameters
+    ----------
+    new_bed_files : list[str]
+        Paths to *.bed.gz* files returned by `filter_bed_file`.
+    down_sample_autosome : bool
+        If True, randomly down‑sample autosome regions to match the
+        number of X‑chromosome regions.
+    select_opp_strand : bool
+        If True, create a second entry for each region on the opposite
+        strand.
+    output_name : str
+        Name of the final BED written to disk.
 
-    Returns:
-    - DataFrame: Combined bed data ready for modkit input.
+    Returns
+    -------
+    pandas.DataFrame
+        The concatenated BED as a DataFrame.
     """
-    # Initialize an empty DataFrame to store the combined data from all bed files
-    combined_bed_df = pd.DataFrame()
+    import os
+    import pandas as pd
+    import numpy as np
+    from pathlib import Path
 
-    # Read each bed file and append it to the combined DataFrame
+    dfs = []
+
+    # ==================================================================
+    #  Iterate through each gzipped BED emitted by *filter_bed_file*
+    # ==================================================================
     for each_bed in new_bed_files:
+        # Strip “.gz” to get the plain‑text BED path
         bed_path = each_bed[:-3]
-        temp_df = pd.read_csv(bed_path, sep="\t", header=None)
-        """# Downsample autosome genes if specified
-        if down_sample_autosome and temp_df[0].str.contains("X").sum() < len(temp_df) - temp_df[0].str.contains("X").sum():
-            x_genes = temp_df[temp_df[0].str.contains("X")]
-            autosome_genes = temp_df[~temp_df[0].str.contains("X")].sample(n=len(x_genes),random_state=1)
-            temp_df = pd.concat([x_genes, autosome_genes], ignore_index=True)"""
-        combined_bed_df = combined_bed_df.append(temp_df)
 
-    # Drop the last column
-    combined_bed_df.drop(combined_bed_df.columns[len(combined_bed_df.columns)-1], axis=1, inplace=True)
-    combined_bed_df.drop(combined_bed_df.columns[len(combined_bed_df.columns)-1], axis=1, inplace=True)
+        # ──────────────────────────────────────────────────────────────
+        #                PATCH  – Gracefully skip empty files
+        # ──────────────────────────────────────────────────────────────
+        try:
+            if os.path.getsize(bed_path) == 0:
+                print(f"skipping empty file … {bed_path}")
+                continue
+            temp_df = pd.read_csv(bed_path, sep="\t", header=None)
+        except pd.errors.EmptyDataError:
+            print(f"skipping empty file … {bed_path}")
+            continue
+        # ─────────────── PATCH END ────────────────────────────────────
 
-    # Insert two "." columns before the last column
-    combined_bed_df.insert(len(combined_bed_df.columns) - 1, len(combined_bed_df.columns) - 1, ".", allow_duplicates=True)
-    combined_bed_df.insert(len(combined_bed_df.columns) - 1, len(combined_bed_df.columns) - 1, ".", allow_duplicates=True)
+        # Ensure we have exactly 6 BED columns
+        if temp_df.shape[1] < 6:
+            raise ValueError(f"{bed_path} has <6 columns; "
+                             "unexpected BED format")
 
+        # Optionally down‑sample autosome regions so that the number of
+        # autosome rows equals the number of X rows per chromosome type.
+        if down_sample_autosome:
+            is_x = temp_df[0].str.contains("X")
+            num_x = is_x.sum()
+            num_auto = len(temp_df) - num_x
+            if num_auto > num_x:
+                auto_idx = temp_df.loc[~is_x].index
+                drop_n = num_auto - num_x
+                drop_idx = np.random.choice(auto_idx, drop_n, replace=False)
+                temp_df = temp_df.drop(drop_idx).reset_index(drop=True)
 
-    # Reset the column labels
-    combined_bed_df.columns = range(len(combined_bed_df.columns))
+        # Optionally duplicate entries with the strand flipped
+        if select_opp_strand:
+            # Flip “+” ↔ “−” in column 5
+            flipped = temp_df.copy()
+            flipped[5] = flipped[5].replace({"+": "-", "-": "+"})
+            temp_df = pd.concat([temp_df, flipped], ignore_index=True)
 
-    # Downsample autosome genes if specified
-    if down_sample_autosome and combined_bed_df[0].str.contains("X").sum() < len(combined_bed_df) - combined_bed_df[0].str.contains("X").sum():
-        x_genes = combined_bed_df[combined_bed_df[0].str.contains("X")]
-        autosome_genes = combined_bed_df[~combined_bed_df[0].str.contains("X")].sample(n=len(x_genes), random_state=1)
-        combined_bed_df = pd.concat([x_genes, autosome_genes], ignore_index=True)
+        dfs.append(temp_df)
 
-    # Select opposite strands if specified
-    if select_opp_strand:
-        minus_strand_df = combined_bed_df[combined_bed_df[5] == "-"].copy()
-        minus_strand_df[5] = "+"
+    # Concatenate *all* surviving DataFrames
+    if not dfs:
+        raise RuntimeError("No non‑empty BED files found – nothing to do.")
 
-        plus_strand_df = combined_bed_df[combined_bed_df[5] == "+"].copy()
-        plus_strand_df[5] = "-"
+    modkit_bed_df = pd.concat(dfs, ignore_index=True)
 
-        combined_bed_df = pd.concat([combined_bed_df, minus_strand_df, plus_strand_df], ignore_index=True)
-
-    # Sort DataFrame and reset index
-    combined_bed_df.sort_values([0, 1], inplace=True)
-    combined_bed_df.reset_index(drop=True, inplace=True)
-
-    # Save DataFrame to file
-    combined_bed_df.to_csv(output_name, sep="\t", header=False, index=False)
-
-    # Renaming combined_bed_df to modkit_bed_df to fulfill your requirement
-    modkit_bed_df = combined_bed_df
+    # Write concatenated BED
+    out_path = Path(output_name)
+    modkit_bed_df.to_csv(out_path, sep="\t", header=False, index=False)
+    print(f"Combined BED written to {out_path} "
+          f"({len(modkit_bed_df):,} rows)")
 
     return modkit_bed_df
 
@@ -1218,23 +1602,19 @@ def random_alpha_numeric(length=6):
     return ''.join((random.choice(letters_and_digits) for i in range(length)))
 
 ### Plotting mod_base by chromosome
-def prepare_chr_plotting_data(coverage_df):
+def prepare_chr_plotting_data(coverage_df: pd.DataFrame) -> pd.DataFrame:
     """
-    Prepares data for plotting by grouping by condition and chromosome and computing m6A_frac.
+    Add convenience columns used in downstream plots.
+    Keeps both ‘condition’ *and* ‘exp_id’.
     """
-    # Group by condition and chromosome, and aggregate the data
-    grouped_df = coverage_df.groupby(['condition', 'chromosome', 'start']).agg({
-        'total_mod_base': 'sum',
-        'total_canonical_base': 'sum'
-    }).reset_index()
+    df = coverage_df.rename(columns={"mod_frac": "m6A_frac"}).copy()
 
-    # Compute the m6A/A ratio for the aggregated data
-    grouped_df['m6A_frac'] = grouped_df['total_mod_base'] / grouped_df['total_canonical_base']
+    # simple chromosome group annotation (autosomes vs X, etc.)
+    def _chr_group(chr_name):
+        return "Autosome" if chr_name not in {"CHROMOSOME_X", "CHROMOSOME_V"} else chr_name.lstrip("CHROMOSOME_")
+    df["chromosome_group"] = df["chromosome"].map(_chr_group)
 
-    # Create the "CHROMOSOME_X" and "Others" categories
-    grouped_df['chromosome_group'] = grouped_df['chromosome'].apply(lambda x: "X" if x == 'CHROMOSOME_X' else 'Autosome')
-
-    return grouped_df
+    return df
 
 def create_chr_type_box_plots_px(grouped_df, title_prefix):
     # Determine the number of unique conditions to set the number of columns for subplots
@@ -1333,81 +1713,345 @@ def create_condition_wise_chromosome_box_plots(grouped_df, title_prefix):
     # Display the figure
     fig.show()
 
+import os
+import io
+import contextlib
+import warnings
+
 def process_region_for_summary(args):
-    chromosome, start, end, _, _, strand, each_bam, each_condition, each_thresh, each_exp_id, sampling_frac = args
-    #print("starting on chromosome:", chromosome," | start:", start,"| end:",end, "with thresh:", each_thresh, "and condition:", each_condition, "and exp_id:", each_exp_id)
-    temp_df = get_summary_from_bam(sampling_frac, each_thresh, "/Data1/software/modkit/modkit", each_bam, each_condition, each_exp_id, 12, chromosome, start, end)
+    """
+    Wrapper around get_summary_from_bam that captures all stdout/stderr
+    from the modkit call into a buffer, then only prints it if the
+    returned DataFrame is empty (so you can inspect what went wrong).
+    """
+    (chromosome, start, end, _, _, strand,
+     each_bam, each_condition, each_thresh,
+     each_exp_id, sampling_frac, bed_file) = args
+
+    # 1) Run the summary call, capturing all output into `buffer`
+    buffer = io.StringIO()
+    with contextlib.redirect_stdout(buffer), contextlib.redirect_stderr(buffer):
+        temp_df = get_summary_from_bam(
+            sampling_frac=sampling_frac,
+            a_threshold=each_thresh,
+            modkit_path="/Data1/software/modkit_v0.3/modkit",
+            bam_path=each_bam,
+            each_condition=each_condition,
+            each_exp_id=each_exp_id,
+            c_threshold=each_thresh,  # keep thresholds matched
+            thread_ct=12,
+            chromosome=chromosome,
+            start=start,
+            end=end,
+        )
+
+    # 2) If we got nothing back, dump the captured text for inspection
+    if temp_df.empty:
+        debug_txt = buffer.getvalue()
+        print(f"[DEBUG modkit output for {chromosome}:{start}-{end}  "
+              f"(cond={each_condition}  exp_id={each_exp_id})]:\n{debug_txt}")
+        warnings.warn(
+            f"Empty result for {chromosome}:{start}-{end}  "
+            f"(cond={each_condition}  exp_id={each_exp_id})",
+            RuntimeWarning
+        )
+        return temp_df
+
+    # 3) Otherwise attach the genomic coords and return as before
     temp_df["chromosome"] = chromosome
-    temp_df["start"] = start
-    temp_df["end"] = end
+    temp_df["start"]      = start
+    temp_df["end"]        = end
     return temp_df
 
+import shutil   # add at top if not already imported
+import os
+import pandas as pd
+import multiprocessing
+from tqdm.auto import tqdm
+from tempfile import NamedTemporaryFile
 
-def process_and_export_summary_by_region(sampling_frac, type_selected,new_bam_files, conditions, thresh_list, exp_ids, modkit_bed_df, force_replace=False, output_directory="temp_files"):
+def _process_bam_with_bed(args):
+    """Wrapper when a single BED is given; no per‑region looping."""
+    (bam, cond, thr, exp, sampling_frac, bed_path) = args
+    return get_summary_from_bam(
+        sampling_frac=sampling_frac,
+        a_threshold=thr,
+        modkit_path="/Data1/software/modkit_v0.3/modkit",
+        bam_path=bam,
+        each_condition=cond,
+        each_exp_id=exp,
+        c_threshold=thr,
+        thread_ct=2,
+        bed_file=bed_path,          # ← key line
+    )
+
+from io import StringIO
+import pandas as pd
+
+def extract_call_table(path_or_str):
     """
-    Processes BAM files by region, summarizes them, and exports the summary to a CSV file.
-
-    Parameters:
-    - new_bam_files: List of paths to BAM files.
-    - conditions: List of conditions corresponding to each BAM file.
-    - thresh_list: List of threshold values for processing.
-    - exp_ids: List of experiment IDs.
-    - modkit_bed_df: DataFrame containing regions to process (chromosome, start, end, etc.).
-    - force_replace: Whether to force regeneration of the summary file even if it exists.
-    - output_directory: Directory where the output CSV file will be saved.
+    Given the text of modkit --tsv output (or a file path), return just
+    the modification‑calls table (columns: base code pass_count …).
     """
+    # read whole text
+    if os.path.exists(path_or_str):
+        with open(path_or_str, "r") as fh:
+            lines = fh.readlines()
+    else:  # already a string
+        lines = path_or_str.splitlines()
 
-    # Define filename for summary table based on selected conditions
-    summary_table_name = os.path.join(output_directory, "_".join([conditions[0], conditions[-1], str(sampling_frac), "thresh"+str(thresh_list[0]), type_selected[0]]) + "_summary_table.csv")
+    # find the header row that starts the calls table
+    for i, ln in enumerate(lines):
+        if ln.startswith("base\t"):
+            start = i
+            break
+    else:
+        raise ValueError("Could not find 'base' header in the TSV text")
+
+    table_text = "".join(lines[start:])          # join from header onward
+    df_calls   = pd.read_csv(StringIO(table_text), sep="\t")
+
+    return df_calls
+
+def process_and_export_summary_by_region(
+    sampling_frac,
+    type_selected,
+    new_bam_files,
+    conditions,
+    thresh_list,
+    exp_ids,
+    modkit_bed_df,
+    force_replace=False,
+    output_directory="temp_files",
+    bed_file=None,                 # <── pass your BED path here
+):
+    """Streams summary TSVs to disk; now BED‑aware."""
+    summary_table_name = os.path.join(
+        output_directory,
+        "_".join([conditions[0], conditions[-1],
+                  str(sampling_frac), f"thresh{thresh_list[0]}",
+                  type_selected[0]]) + "_summary_table.csv")
 
     if not force_replace and os.path.exists(summary_table_name):
-        print("Summary table exists, importing...")
-        summary_bam_df = pd.read_csv(summary_table_name, sep="\t", header=0)
+        print("Summary table exists → loading from disk …")
+        return pd.read_csv(summary_table_name, sep="\t")
+
+    # ----------------------------------------------------------------
+    # Build job list
+    # ----------------------------------------------------------------
+    if bed_file:  # ── only ONE job per BAM
+        args_list = [
+            (bam, cond, thr, exp, sampling_frac, bed_file)
+            for bam, cond, thr, exp in zip(
+                new_bam_files, conditions, thresh_list, exp_ids)
+        ]
+        worker   = _process_bam_with_bed
+    else:        # ── original per‑region jobs
+        args_list = [
+            (row[0], row[1], row[2], row[3], row[4], row[5],
+             bam, cond, thr, exp, sampling_frac, None)
+            for _, row in modkit_bed_df.iterrows()
+            for bam, cond, thr, exp in zip(
+                new_bam_files, conditions, thresh_list, exp_ids)
+        ]
+        worker   = process_region_for_summary
+
+    total_jobs = len(args_list)
+    os.makedirs(output_directory, exist_ok=True)
+
+    header_written = False
+    with NamedTemporaryFile(mode="w", delete=False) as tmp, \
+         multiprocessing.Pool(processes=32) as pool:
+
+        for temp_df in tqdm(
+                pool.imap_unordered(worker, args_list, chunksize=1),
+                total=total_jobs, desc="Jobs", unit="job"):
+            if temp_df.empty:
+                continue
+            temp_df.to_csv(tmp, sep="\t", header=not header_written, index=False)
+            header_written = True
+
+    if not header_written:
+        raise ValueError("All summaries empty—nothing written.")
+
+    shutil.move(tmp.name, summary_table_name)
+
+    print(f"Exported summary → {summary_table_name}")
+    return pd.read_csv(summary_table_name, sep="\t")
+
+import pandas as pd
+import numpy as np
+
+def ensure_tidy_summary(df_in: pd.DataFrame) -> pd.DataFrame:
+    """
+    Convert Modkit 'summary' outputs that use a wide 'mod_bases' layout into
+    a tidy schema with at least:
+        ['condition','exp_id','base','code','pass_count', ... (region cols if present)]
+    Passes through untouched if already tidy.
+    """
+    df = df_in.copy()
+
+    # Already tidy?
+    if {'base','code','pass_count'}.issubset(df.columns):
+        return df
+
+    # Expect wide layout with 'mod_bases' and a single numeric value column
+    if 'mod_bases' not in df.columns:
+        raise KeyError(
+            "Expected either tidy columns {'base','code','pass_count'} "
+            "or wide layout with 'mod_bases'. Got: "
+            f"{df.columns.tolist()}"
+        )
+
+    # Prefer common numeric column names; else pick the first numeric column
+    preferred = [c for c in ['C,A','value','count','pass_count','n'] if c in df.columns]
+    if preferred:
+        vcol = preferred[0]
     else:
-        # Prepare the arguments for multiprocessing
-        args_list = [(row[0], row[1], row[2], row[3], row[4], row[5], each_bam, each_condition, each_thresh, each_exp_id, sampling_frac)
-                     for _, row in modkit_bed_df.iterrows()
-                     for each_bam, each_condition, each_thresh, each_exp_id in zip(new_bam_files, conditions, thresh_list, exp_ids)]
+        id_like = {'mod_bases','condition','exp_id','chromosome','start','end','region','name','strand'}
+        numeric_candidates = [c for c in df.columns
+                              if c not in id_like and pd.api.types.is_numeric_dtype(df[c])]
+        if not numeric_candidates:
+            raise ValueError("No numeric value column found in wide summary.")
+        vcol = numeric_candidates[0]
 
-        # Use multiprocessing to process regions in parallel
-        with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
-            results = pool.map(process_region_for_summary, tqdm(args_list, total=len(args_list)))
+    id_cols = [c for c in ['condition','exp_id','chromosome','start','end','region','name','strand']
+               if c in df.columns]
 
-        # Concatenate the results
-        summary_bam_df = pd.concat(results, ignore_index=True)
+    rows = []
+    # Group by identifiers (condition/exp_id/region coords, if present)
+    for _, sub in df.groupby(id_cols, dropna=False) if id_cols else [(None, df)]:
+        def get(name: str) -> float:
+            exact = sub.loc[sub['mod_bases'] == name, vcol]
+            if not exact.empty:
+                return float(exact.iloc[0])
+            pref = sub.loc[sub['mod_bases'].str.startswith(name, na=False), vcol]
+            return float(pref.iloc[0]) if not pref.empty else 0.0
 
-        # Export the concatenated DataFrame to CSV
-        summary_bam_df.to_csv(summary_table_name, sep="\t", header=True, index=False)
-        print(f"Exported summary to {summary_table_name}")
+        a_mod = get('A_pass_calls_modified_a')
+        a_un  = get('A_pass_calls_unmodified')
+        c_mod = get('C_pass_calls_modified_m')
+        c_un  = get('C_pass_calls_unmodified')
 
-    return summary_bam_df
+        base_rows = [
+            {'base':'A','code':'a','pass_count':a_mod},
+            {'base':'A','code':'-','pass_count':a_un},
+            {'base':'C','code':'m','pass_count':c_mod},
+            {'base':'C','code':'-','pass_count':c_un},
+        ]
 
-def create_coverage_df(code, summary_bam_df, coverage_df_name):
+        common = {k: (sub.iloc[0][k] if id_cols else None) for k in id_cols}
+        for r in base_rows:
+            rows.append({**common, **r})
+
+    out = pd.DataFrame(rows)
+    # Keep region coords if they exist; create placeholders if not
+    # (create_coverage_df expects 'chromosome' and 'start' for per-region plots)
+    for col in ['chromosome','start']:
+        if col not in out.columns:
+            out[col] = np.nan
+
+    # Ensure types
+    if out['pass_count'].dtype != float and out['pass_count'].dtype != int:
+        out['pass_count'] = pd.to_numeric(out['pass_count'], errors='coerce').fillna(0)
+
+    return out
+
+
+import pandas as pd
+from pathlib import Path
+import pandas as pd
+import numpy as np
+from pathlib import Path
+
+def create_coverage_df(code: str,
+                       summary_bam_df: pd.DataFrame,
+                       out_csv: str,
+                       *,
+                       save: bool = True) -> pd.DataFrame:
     """
-    Creates a coverage dataframe for a specified code ('a' or 'm') and saves it.
+    Build a per-region (or genome-wide if region coords are missing) coverage table.
+
+    Returns columns:
+      condition · exp_id · [chromosome · start] · mod_pass · canon_pass · mod_frac
     """
-    # Filter summary_bam_df based on code and canonical base (A for 'a', C for 'm')
-    base_filter = "A" if code == 'a' else "C"
-    filtered_df_canonical = summary_bam_df[summary_bam_df['base'] == base_filter]
-    # filter based on code
-    filtered_df_mod = summary_bam_df[summary_bam_df['code'] == code]
+    # Normalize if still wide
+    if not {'base','code','pass_count'}.issubset(summary_bam_df.columns):
+        summary_bam_df = ensure_tidy_summary(summary_bam_df)
 
-    # Calculate total_canonical_base
-    total_canonical_base = filtered_df_canonical.groupby(['condition', 'chromosome', 'start'])['pass_count'].sum().reset_index()
-    total_canonical_base.rename(columns={'pass_count': 'total_canonical_base'}, inplace=True)
+    base_filter = "A" if code == "a" else "C"
+    mod_code, canon_code = code, "-"
 
-    # Calculate total_mod_base
-    total_mod_base = filtered_df_mod.groupby(['condition', 'chromosome', 'start'])['pass_count'].sum().reset_index()
-    total_mod_base.rename(columns={'pass_count': 'total_mod_base'}, inplace=True)
+    required = {'condition','exp_id','code','pass_count','base'}
+    missing = required - set(summary_bam_df.columns)
+    if missing:
+        raise KeyError(f"Missing required columns: {missing}")
 
+    # Decide grouping keys: include region keys only if they exist AND have any non-NaN
+    region_keys = []
+    for k in ("chromosome", "start"):
+        if k in summary_bam_df.columns and summary_bam_df[k].notna().any():
+            region_keys.append(k)
+    group_keys = ["condition", "exp_id"] + region_keys
 
-    # Merge total_mod_base and total_canonical_base DataFrames
-    coverage_df = pd.merge(total_mod_base, total_canonical_base, on=['condition', 'chromosome', 'start'], how='outer').fillna(0)
+    subset = summary_bam_df.loc[
+        (summary_bam_df["base"] == base_filter)
+        & (summary_bam_df["code"].isin([mod_code, canon_code])),
+        group_keys + ["code", "pass_count"]
+    ]
+    if subset.empty:
+        raise ValueError(
+            f"No rows for base={base_filter} with codes {mod_code!r} or '-' "
+            "after filtering; check upstream summary."
+        )
 
-    # Calculate m6A_frac
-    coverage_df['mod_frac'] = coverage_df['total_mod_base'] / (coverage_df['total_mod_base'] + coverage_df['total_canonical_base'])
+    # Sum pass_count per group × code; keep NaN groups if any
+    agg = (
+        subset.groupby(group_keys + ["code"], dropna=False, as_index=False)["pass_count"]
+              .sum()
+    )
 
-    # Save coverage df
-    coverage_df.to_csv(coverage_df_name, sep="\t", header=True, index=False)
-    return coverage_df
+    # Pivot and ensure both code columns exist
+    pivot = agg.pivot_table(
+        index=group_keys, columns="code", values="pass_count", fill_value=0
+    )
+    # If only one code is present, add the missing one as zeros
+    for c in (mod_code, canon_code):
+        if c not in pivot.columns:
+            pivot[c] = 0
 
+    pivot = (
+        pivot.rename(columns={mod_code: "mod_pass", canon_code: "canon_pass"})
+             .reset_index()
+    )
+    pivot.columns.name = None  # drop the 'code' axis name if present
+
+    denom = (pivot["mod_pass"] + pivot["canon_pass"]).replace(0, np.nan)
+    pivot["mod_frac"] = pivot["mod_pass"] / denom
+
+    if save:
+        Path(out_csv).parent.mkdir(parents=True, exist_ok=True)
+        pivot.to_csv(out_csv, sep="\t", index=False)
+
+    return pivot
+
+def prepare_chr_plotting_data(coverage_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Prepare per-region coverage for plotting.
+    Safe if 'chromosome' is missing by checking alternatives.
+    """
+    df = coverage_df.rename(columns={"mod_frac": "m6A_frac"}).copy()
+
+    # tolerate alt column names
+    if "chromosome" not in df.columns:
+        if "chrom" in df.columns:
+            df = df.rename(columns={"chrom": "chromosome"})
+        else:
+            raise KeyError("Expected 'chromosome' in coverage_df.")
+
+    # annotate X vs autosomes
+    def _grp(c):
+        return "Autosome" if c not in {"CHROMOSOME_X", "CHROMOSOME_V"} else c.replace("CHROMOSOME_","")
+    df["chromosome_group"] = df["chromosome"].map(_grp)
+
+    return df

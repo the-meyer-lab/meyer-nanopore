@@ -13,75 +13,75 @@
 # dorado download --model all
 
 ### Define variables:
-INDIR="/Data1/seq_data/BN_96DPY27Deg_Fiber_Hia5_MCviPI_05_24_24/no_sample/combined_pod5"
-OUTFOLDER="/Data1/git/meyer-nanopore/scripts/basecalling/"
+INDIR="/Data1/seq_data/CE1_6_N2young_N2mid_SDC3degron_8_12_25/no_sample_id/20250824_1743_P2S-01799-A_PAW21093_758d29bd/pod5"
+OUTFOLDER="/Data1/seq_data/CE1_6_N2young_N2mid_SDC3degron_8_12_25/no_sample_id/combined_basecalls/"
 OUTFILE="${OUTFOLDER}mod_mappings.bam"
 SORTED_OUTFILE="${OUTFOLDER}mod_mappings.sorted.bam"
 REF="/Data1/reference/ws235.mmi" # this is c. elegans reference file, change to appropriate reference
 COMPLETED_OUTFILE="${OUTFOLDER}mod_mappings.sorted.completed.bam" # filename for completed modification encoding
 COMPLETED_SORTED_OUTFILE="${OUTFOLDER}mod_mappings.sorted.completed.sorted.bam" # filename for completed modification encoding
 
-# Set parameters
-DEMULTIPLEX=false
-RESUME=false
-KIT_NAME="SQK-NBD114-24"
+# # Set parameters
+# DEMULTIPLEX=true
+# RESUME=true
+# KIT_NAME="SQK-RBK114-96" # for demultiplexing, does not affect singleplex #SQK-RBK114-96
 
-# Create output folder if it doesn't exist
-if [ ! -d "$OUTFOLDER" ]; then
-    mkdir -p "$OUTFOLDER"
-    echo "Output folder created: $OUTFOLDER"
-else
-    echo "Output folder already exists: $OUTFOLDER"
-fi
+# # Create output folder if it doesn't exist
+# if [ ! -d "$OUTFOLDER" ]; then
+#     mkdir -p "$OUTFOLDER"
+#     echo "Output folder created: $OUTFOLDER"
+# else
+#     echo "Output folder already exists: $OUTFOLDER"
+# fi
 
-echo "Input Directory: $INDIR"
-echo "Output File: $OUTFILE"
-echo "Sorted Output File: $SORTED_OUTFILE"
-echo "Reference: $REF"
+# echo "Input Directory: $INDIR"
+# echo "Output File: $OUTFILE"
+# echo "Sorted Output File: $SORTED_OUTFILE"
+# echo "Reference: $REF"
 
-### PICK APPROPRIATE MODEL
-# 5khz-data
-# dna_r10.4.1_e8.2_400bps_sup@v4.2.0_5mC@v2 (5 kHz)
-# dna_r10.4.1_e8.2_400bps_sup@v4.2.0_6mA@v2 (5 kHz)
-# res_dna_r10.4.1_e8.2_400bps_sup@v4.0.1_5mC@v2 (4 KHz)
-# res_dna_r10.4.1_e8.2_400bps_sup@v4.0.1_6mA@v2 (4 KHz)
+# ### PICK APPROPRIATE MODEL
+# # 5khz-data
+# # dna_r10.4.1_e8.2_400bps_sup@v4.2.0_5mC@v2 (5 kHz)
+# # dna_r10.4.1_e8.2_400bps_sup@v4.2.0_6mA@v2 (5 kHz)
+# # res_dna_r10.4.1_e8.2_400bps_sup@v4.0.1_5mC@v2 (4 KHz)
+# # res_dna_r10.4.1_e8.2_400bps_sup@v4.0.1_6mA@v2 (4 KHz)
 
-cd /Data1/software/dorado/bin
+# cd /Data1/software/dorado/bin
 
-BASECALLER_COMMAND="./dorado basecaller \
-/Data1/software/rerio/dorado_models/dna_r10.4.1_e8.2_400bps_sup@v4.2.0 \
-$INDIR \
---reference $REF \
---modified-bases-threshold 0 \
---device cuda:2,3 \
---modified-bases 5mC 6mA"
+# BASECALLER_COMMAND="./dorado basecaller \
+# /Data1/software/rerio/dorado_models/dna_r10.4.1_e8.2_400bps_sup@v4.2.0 \
+# $INDIR \
+# --reference $REF \
+# --modified-bases-threshold 0 \
+# --device cuda:all \
+# --modified-bases 5mC 6mA"
 
-if [ "$RESUME" = true ]; then
-    BASECALLER_COMMAND="$BASECALLER_COMMAND \
-    --resume-from $OUTFILE \
-    > $COMPLETED_OUTFILE"
-    OUTFILE="$COMPLETED_OUTFILE"
-    SORTED_OUTFILE="$COMPLETED_SORTED_OUTFILE"
-    echo "Completed Output File: $OUTFILE"
-    echo "Completed Sorted Output File: $SORTED_OUTFILE"
-else
-    BASECALLER_COMMAND="$BASECALLER_COMMAND \
-    > $OUTFILE"
-fi
+# if [ "$RESUME" = true ]; then
+#     BASECALLER_COMMAND="$BASECALLER_COMMAND \
+#     --resume-from $OUTFILE \
+#     > $COMPLETED_OUTFILE"
+#     OUTFILE="$COMPLETED_OUTFILE"
+#     SORTED_OUTFILE="$COMPLETED_SORTED_OUTFILE"
+#     echo "Completed Output File: $OUTFILE"
+#     echo "Completed Sorted Output File: $SORTED_OUTFILE"
+# else
+#     BASECALLER_COMMAND="$BASECALLER_COMMAND \
+#     > $OUTFILE"
+# fi
 
-if [ "$DEMULTIPLEX" = true ]; then
-    BASECALLER_COMMAND="$BASECALLER_COMMAND \
-    --kit-name $KIT_NAME"
-fi
+# if [ "$DEMULTIPLEX" = true ]; then
+#     BASECALLER_COMMAND="$BASECALLER_COMMAND \
+#     --kit-name $KIT_NAME"
+# fi
 
-eval $BASECALLER_COMMAND
+# eval $BASECALLER_COMMAND
 
-if [ "$DEMULTIPLEX" = true ]; then
-    /home/grid/Documents/Basecalling/dorado-0.6.0-linux-x64/bin/dorado demux \
-    --no-trim \
-    -o $OUTFOLDER \
-    --no-classify $OUTFILE
-fi
+# if [ "$DEMULTIPLEX" = true ]; then
+#     ./dorado demux \
+#     --no-trim \
+#     --output-dir $OUTFOLDER \
+#     --kit-name SQK-RBK114-96 $OUTFILE
+# fi
 
 # Iterate over each .bam file in the folder and sort it. This will handle singleplex and multiplex
 for bam_file in "$OUTFOLDER"/*.bam; do
