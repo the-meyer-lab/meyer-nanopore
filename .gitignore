@@ -22,3 +22,8 @@
 !/scripts/basecalling/
 !/scripts/basecalling/*
 /scripts/basecalling/*/
+
+# Track scripts/analysis/.ipynb_checkpoints (files only)
+!/scripts/analysis/.ipynb_checkpoints/
+!/scripts/analysis/.ipynb_checkpoints/*
+/scripts/analysis/.ipynb_checkpoints/*/
