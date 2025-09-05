@@ -106,7 +106,8 @@ def get_color(key):
     if "n2_mid" in k_lower:  return "#61baad"
     if "n2_young" in k_lower:return "#dea01e"
     if "sdc3"  in k_lower:   return "#9d55ac"
-    if "dpy21" in k_lower:   return "#808080"
+    if "dpy21n" in k_lower:   return "#808080"
+    if "dpy21j" in k_lower:   return "#DB6F34"
 
     # ── 2) type colours ───────────────────────────────────────────────────────
     TYPE_COLOR_MAP = {
